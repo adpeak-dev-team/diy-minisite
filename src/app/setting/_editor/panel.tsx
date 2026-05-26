@@ -516,11 +516,6 @@ function StructureTab({
 }) {
     return (
         <>
-            <PageSelector
-                subPages={s.subPages}
-                currentPageId={currentPageId}
-                onSelect={setCurrentPageId}
-            />
             <AccordionSection
                 title={
                     currentSubPage
@@ -597,7 +592,7 @@ function StructureTab({
     );
 }
 
-function PageSelector({
+export function PageSelector({
     subPages,
     currentPageId,
     onSelect,
@@ -607,38 +602,40 @@ function PageSelector({
     onSelect: (next: string | null) => void;
 }) {
     return (
-        <div className="bg-blue-50/60 border border-blue-100 rounded-xl p-3 mb-2">
-            <div className="text-[11px] font-medium text-blue-700 mb-1.5 flex items-center gap-1">
-                <span>📐</span>
-                <span>편집 중인 페이지</span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto">
-                <button
-                    type="button"
-                    onClick={() => onSelect(null)}
-                    className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap transition ${
-                        currentPageId === null
-                            ? "bg-blue-600 text-white shadow"
-                            : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                    }`}
-                >
-                    메인 페이지
-                </button>
-                {subPages.map((p) => (
+        <div className="px-4 sm:px-5 py-2 border-b border-slate-200 bg-white">
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
+                <div className="text-[11px] font-medium text-blue-700 mb-1.5 flex items-center gap-1">
+                    <span>📐</span>
+                    <span>편집 중인 페이지</span>
+                </div>
+                <div className="flex items-center gap-1.5 overflow-x-auto">
                     <button
-                        key={p.id}
                         type="button"
-                        onClick={() => onSelect(p.id)}
-                        className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap font-mono transition ${
-                            currentPageId === p.id
+                        onClick={() => onSelect(null)}
+                        className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap transition ${
+                            currentPageId === null
                                 ? "bg-blue-600 text-white shadow"
                                 : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
                         }`}
-                        title={p.title || `/${p.slug}`}
                     >
-                        /{p.slug}
+                        메인 페이지
                     </button>
-                ))}
+                    {subPages.map((p) => (
+                        <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => onSelect(p.id)}
+                            className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap font-mono transition ${
+                                currentPageId === p.id
+                                    ? "bg-blue-600 text-white shadow"
+                                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                            }`}
+                            title={p.title || `/${p.slug}`}
+                        >
+                            /{p.slug}
+                        </button>
+                    ))}
+                </div>
             </div>
         </div>
     );

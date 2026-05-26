@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { EditorPanel, EditorTabs, TabKey } from "./_editor/panel";
+import {
+    EditorPanel,
+    EditorTabs,
+    PageSelector,
+    TabKey,
+} from "./_editor/panel";
 import { Preview, PreviewMode } from "./_preview/preview";
 import { ModalProvider, useConfirm } from "./_ui/modal";
 import { ToastProvider, useToast } from "./_ui/toast";
@@ -60,7 +65,7 @@ function SettingPageInner() {
                 <div
                     className={`${
                         pane === "preview" ? "flex" : "hidden"
-                    } lg:flex flex-1 min-h-0 lg:h-screen flex-col items-center p-4 sm:p-6 overflow-auto`}
+                    } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col items-center p-4 sm:p-6 overflow-auto`}
                 >
                     <div className="flex flex-col items-center gap-5 my-auto min-w-fit">
                         <PreviewModeToggle mode={mode} onChange={setMode} />
@@ -76,7 +81,7 @@ function SettingPageInner() {
                 <div
                     className={`${
                         pane === "editor" ? "flex" : "hidden"
-                    } lg:flex flex-1 min-h-0 lg:h-screen flex-col bg-white`}
+                    } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col bg-white`}
                 >
                     <div className="shrink-0">
                         <div className="px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
@@ -100,9 +105,16 @@ function SettingPageInner() {
                             activeTab={activeTab}
                             onChange={setActiveTab}
                         />
+                        {activeTab === "structure" ? (
+                            <PageSelector
+                                subPages={s.subPages}
+                                currentPageId={currentPageId}
+                                onSelect={setCurrentPageId}
+                            />
+                        ) : null}
                     </div>
 
-                    <div className="flex-1 min-h-0 overflow-y-auto editor-scroll py-4 px-3 sm:px-4">
+                    <div className="flex-1 min-h-0 min-w-0 overflow-y-auto editor-scroll py-4 px-3 sm:px-4">
                         <EditorPanel
                             s={s}
                             setS={setS}

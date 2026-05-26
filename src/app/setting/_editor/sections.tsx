@@ -1,6 +1,7 @@
 "use client";
 
 import {
+    HeroTextPosition,
     IMAGE_EFFECT_LABEL,
     ImageEffect,
     SECTION_ANIMATION_LABEL,
@@ -13,6 +14,7 @@ import {
 import {
     ImageUploader,
     MultiImagePicker,
+    RadioPill,
     RichTextEditor,
 } from "../widgets";
 import { ListRowActions } from "../_ui/editable-list";
@@ -256,6 +258,20 @@ function SectionBody({
                     value={sec.image}
                     onChange={(v) => onPatch({ image: v })}
                 />
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs text-slate-500">텍스트 위치</span>
+                    <RadioPill
+                        value={sec.textPosition ?? "center"}
+                        onChange={(v) =>
+                            onPatch({ textPosition: v as HeroTextPosition })
+                        }
+                        options={[
+                            { value: "top", label: "상단" },
+                            { value: "center", label: "중앙" },
+                            { value: "bottom", label: "하단" },
+                        ]}
+                    />
+                </div>
                 <RichTextEditor
                     value={sec.content}
                     onChange={(html) => onPatch({ content: html })}
