@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F8FAFC;
+  --foreground: #0F172A;
+  --editor-bg: #F1F5F9;
+  --editor-card: #ffffff;
+  --editor-border: #E2E8F0;
+  --primary: #2563EB;
+  --primary-hover: #1D4ED8;
+  --primary-soft: #DBEAFE;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-pretendard:
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+}
+
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/woff2/PretendardVariable.woff2")
+    format("woff2-variations");
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-pretendard);
+}
+
+.pretendard {
+  font-family: var(--font-pretendard);
+}
+
+@layer components {
+  .input-base {
+    @apply px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none transition
+           focus:border-blue-600 focus:ring-2 focus:ring-blue-100 bg-white text-slate-900;
+  }
+  textarea.input-base {
+    @apply leading-relaxed;
+  }
+
+  .field-label {
+    @apply text-[13px] font-medium text-slate-700 mb-1.5 block;
+  }
+  .field-hint {
+    @apply text-[11px] text-slate-500 mt-1;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg
+           text-sm font-medium transition cursor-pointer
+           border border-transparent select-none disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  .btn-sm  { @apply px-2.5 py-1.5 text-xs; }
+  .btn-xs  { @apply px-2 py-1 text-[11px]; }
+
+  .btn-primary   { @apply bg-blue-600 hover:bg-blue-700 text-white; }
+  .btn-accent    { @apply bg-blue-600 hover:bg-blue-700 text-white; }
+  .btn-secondary { @apply bg-slate-100 hover:bg-slate-200 text-slate-800; }
+  .btn-ghost     { @apply bg-transparent hover:bg-slate-100 text-slate-700; }
+  .btn-outline   { @apply bg-white border-slate-300 text-slate-700 hover:bg-slate-50; }
+  .btn-danger    { @apply bg-red-500 hover:bg-red-600 text-white; }
+  .btn-outline-danger { @apply bg-white border-red-200 text-red-600 hover:bg-red-50; }
+
+  .toggle-switch {
+    @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full
+           bg-slate-300 transition-colors duration-200;
+  }
+  .toggle-switch[data-on="true"] {
+    @apply bg-blue-600;
+  }
+  .toggle-switch::after {
+    content: "";
+    @apply absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow
+           transition-transform duration-200;
+  }
+  .toggle-switch[data-on="true"]::after {
+    transform: translateX(20px);
+  }
+
+  .accordion-row {
+    @apply bg-white border border-slate-200 rounded-xl overflow-hidden transition;
+  }
+  .accordion-head {
+    @apply flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none hover:bg-slate-50;
+  }
+  .accordion-title {
+    @apply text-[15px] font-medium text-slate-900 flex-1;
+  }
+  .accordion-body {
+    @apply px-4 pb-4 pt-1 border-t border-slate-100 bg-white;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 180ms ease-out;
+}
+
+/* Custom scrollbar for editor panel */
+.editor-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.editor-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-scroll::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 8px;
+}
+.editor-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
