@@ -314,8 +314,8 @@ export function RichTextEditor({
     };
 
     return (
-        <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
-            <div className="flex items-center gap-0.5 px-2 py-1 border-b border-slate-200 bg-slate-50 flex-wrap">
+        <div className="border border-slate-200 rounded-lg bg-white min-w-0">
+            <div className="flex items-center gap-0.5 px-2 py-1 border-b border-slate-200 bg-slate-50 rounded-t-lg flex-wrap">
                 <button
                     type="button"
                     title="굵게"
@@ -387,7 +387,7 @@ export function RichTextEditor({
                 </select>
                 <div className="w-px h-4 bg-slate-200 mx-1" />
                 <label
-                    className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer"
+                    className="relative w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 cursor-pointer"
                     title="색상"
                     onMouseDown={(e) => {
                         e.preventDefault();
@@ -400,7 +400,7 @@ export function RichTextEditor({
                     />
                     <input
                         type="color"
-                        className="hidden"
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         value={color}
                         onChange={(e) => {
                             setColor(e.target.value);
@@ -441,8 +441,15 @@ export function RichTextEditor({
                 ref={ref}
                 contentEditable
                 suppressContentEditableWarning
-                className="px-3 py-2 text-sm outline-none focus:bg-slate-50/50"
-                style={{ minHeight: `${rows * 1.5}rem` }}
+                className="px-3 py-2 text-sm outline-none focus:bg-slate-50/50 rounded-b-lg"
+                style={{
+                    minHeight: `${rows * 1.5}rem`,
+                    width: "100%",
+                    minWidth: 0,
+                    whiteSpace: "nowrap",
+                    overflowX: "auto",
+                    overflowY: "hidden",
+                }}
                 onInput={() => {
                     saveSelection();
                     emit();

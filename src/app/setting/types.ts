@@ -62,6 +62,7 @@ export type SectionAnimation =
     | "slide-left"
     | "zoom-in"
     | "zoom-out";
+export type HeroTextPosition = "top" | "center" | "bottom";
 export type CountdownPosition = "top" | "bottom" | "floating";
 export type BottomSlotMode = "image" | "text";
 
@@ -83,6 +84,7 @@ export type Section = {
     content: string;
     effect?: ImageEffect;
     animation?: SectionAnimation;
+    textPosition?: HeroTextPosition;
     formVariant?: FormVariant;
     formData?: FormSectionData;
 };

@@ -38,6 +38,13 @@ function SectionBody({
                 </div>
             );
         }
+        const position = sec.textPosition ?? "center";
+        const alignY =
+            position === "top"
+                ? "items-start pt-6"
+                : position === "bottom"
+                  ? "items-end pb-6"
+                  : "items-center";
         return (
             <div className="relative border-b border-slate-100 overflow-hidden">
                 <ImageWithEffect
@@ -47,7 +54,7 @@ function SectionBody({
                 />
                 {sec.content ? (
                     <div
-                        className={`absolute inset-0 flex items-center justify-center ${
+                        className={`absolute inset-0 flex justify-center ${alignY} ${
                             pc ? "px-12" : "px-6"
                         }`}
                     >
