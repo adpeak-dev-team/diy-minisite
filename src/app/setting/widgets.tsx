@@ -10,6 +10,7 @@ import {
     useState,
 } from "react";
 import { FONT_OPTIONS, FontKey, OnOff } from "./types";
+import { toSwatchHex } from "./color";
 
 export const AutoFocusContext = createContext(false);
 
@@ -469,7 +470,7 @@ export function ColorPicker({
     value: string;
     onChange: (v: string) => void;
 }) {
-    const safe = /^#([0-9a-fA-F]{6})$/.test(value) ? value : "#000000";
+    const safe = toSwatchHex(value);
     return (
         <div className="flex items-center gap-2">
             <input
@@ -488,6 +489,25 @@ export function ColorPicker({
                 spellCheck={false}
             />
         </div>
+    );
+}
+
+// Field + ColorPicker 조합. 색상 입력은 거의 항상 이 형태로 쓰여서 한 줄로 줄인다.
+export function ColorField({
+    label,
+    hint,
+    value,
+    onChange,
+}: {
+    label?: string;
+    hint?: string;
+    value: string;
+    onChange: (v: string) => void;
+}) {
+    return (
+        <Field label={label} hint={hint}>
+            <ColorPicker value={value} onChange={onChange} />
+        </Field>
     );
 }
 

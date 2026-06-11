@@ -16,16 +16,6 @@ export function clampPct(value: string | undefined, min = 0, max = 100): number 
     return Math.min(Math.max(n, min), max);
 }
 
-export function isLightColor(hex: string): boolean {
-    const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
-    if (!m) return false;
-    const n = parseInt(m[1], 16);
-    const r = (n >> 16) & 0xff;
-    const g = (n >> 8) & 0xff;
-    const b = n & 0xff;
-    return (r * 299 + g * 587 + b * 114) / 1000 > 150;
-}
-
 export function menuHref(m: Pick<MenuItem, "link" | "linkType">): string {
     if (m.linkType === "subpage") return `/${m.link.replace(/^\/+/, "")}`;
     if (/^https?:\/\//.test(m.link) || m.link.startsWith("/")) return m.link;

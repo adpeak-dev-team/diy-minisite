@@ -2,7 +2,7 @@
 
 import { Settings } from "../types";
 import {
-    ColorPicker,
+    ColorField,
     Field,
     FontSelect,
     ImageUploader,
@@ -103,19 +103,17 @@ function BottomSlotEditor({
                         </Field>
                     )}
                     <div className="grid grid-cols-2 gap-3">
-                        <Field label="배경 색상">
-                            <ColorPicker
-                                value={slot.bgColor}
-                                onChange={(v) => patch({ bgColor: v })}
-                            />
-                        </Field>
+                        <ColorField
+                            label="배경 색상"
+                            value={slot.bgColor}
+                            onChange={(v) => patch({ bgColor: v })}
+                        />
                         {slot.mode === "text" ? (
-                            <Field label="텍스트 색상">
-                                <ColorPicker
-                                    value={slot.textColor}
-                                    onChange={(v) => patch({ textColor: v })}
-                                />
-                            </Field>
+                            <ColorField
+                                label="텍스트 색상"
+                                value={slot.textColor}
+                                onChange={(v) => patch({ textColor: v })}
+                            />
                         ) : null}
                     </div>
                     <Field label="링크" hint="tel:01012345678 / https://...">

@@ -76,17 +76,28 @@ export type BottomSlot = {
     link: string;
 };
 
+// 옛 contentList 항목 한 개의 원본 형태 (formInviteImg, formButtonImg, formAgree 등
+// 새 에디터 UI엔 노출 안 되지만 저장 시 보존해야 하는 키들).
+export type LegacyContentItem = Record<string, unknown>;
+
 export type Section = {
     id: string;
     type: SectionType;
     title: string;
     image: string | null;
     content: string;
+    link?: string;                     // 이미지 클릭 시 이동할 URL (옛 formInviteImg 등)
     effect?: ImageEffect;
     animation?: SectionAnimation;
     textPosition?: HeroTextPosition;
     formVariant?: FormVariant;
     formData?: FormSectionData;
+    legacy?: {
+        contentListIndex: number;       // 원본 contentList 의 몇 번째 항목에서 왔는지
+        sourceItem: LegacyContentItem;  // 해당 contentList 항목 통째로
+        imgListIndex?: number;          // imgList 에서 왔다면 몇 번째 이미지인지
+        role?: "form-invite";           // form 의 formInviteImg 에서 추출된 image 섹션 표식
+    };
 };
 
 export type MenuLinkType = "subpage" | "url";
@@ -102,6 +113,10 @@ export type SubPage = {
     slug: string;
     title: string;
     sections: Section[];
+    legacy?: {
+        sourceMenu: Record<string, unknown>;  // ld_json_menus.menus[i] 통째로
+        menuIndex: number;
+    };
 };
 
 export type FormSectionData = {
@@ -124,6 +139,12 @@ export type FormSectionData = {
     buttonColor?: string;
     buttonTextColor?: string;
     customFields?: CustomFormField[];
+    // === 옛 land 호환 옵션 ===
+    fixedBottom?: "fixed" | "nonfixed";  // 폼 박스를 화면 하단에 고정할지
+    buttonType?: "image" | "text";        // 제출 버튼을 이미지/텍스트 중 어느 걸로 표시
+    buttonImage?: string | null;          // buttonType='image' 일 때 사용 (옛 formButtonImg)
+    agreeMode?: "use" | "notuse";         // 개인정보 동의 사용 여부 (옛 formAgree)
+    agreeAddWords?: string[];             // 개인정보 하단 추가 문구 (옛 formAgreeAddWord)
 };
 
 export type EnabledFlags = {
@@ -137,6 +158,29 @@ export type EnabledFlags = {
     countdown: boolean;
     quickConnect: boolean;
     location: boolean;
+};
+
+// 옛 land 컬럼 중 새 Settings UI에는 노출되지 않지만 라운드트립으로
+// 보존해야 하는 값들. 라이브 SvelteKit 사이트가 계속 읽기 때문에 절대 잃으면 안 됨.
+export type LegacyFields = {
+    fixedImage?: string | null;  // ld_invite_image (우측 고정 원형 이미지)
+    smsContent?: string;          // ld_sms_content (문자내용)
+    managerEmail?: string;        // ld_manager_email
+    site?: string;                // ld_site
+    menu?: string;                // ld_menu
+    location?: string;            // ld_location (텍스트, ld_json_location.address와 별도)
+    ftAddress?: string;           // ld_ft_address
+    viewType?: string;            // ld_view_type
+    // 새 에디터가 일부만 수정한 경우, 옛 JSON 컬럼 원본 보존
+    rawJsonMain?: string;         // ld_json_main 원본 (contentList 구조)
+    rawJsonHeader?: string;       // ld_json_header 원본
+    rawJsonMenus?: string;        // ld_json_menus 원본
+    rawFooter?: string;           // ld_footer 원본 (파이프 문자열)
+    rawPg0?: string;
+    rawPg1?: string;
+    rawPg2?: string;
+    rawPg3?: string;
+    rawPg4?: string;
 };
 
 export type Settings = {
@@ -176,6 +220,7 @@ export type Settings = {
         belowInviteVisible: OnOff;
         buttonText: string;
         businessCardImage: string | null;
+        fixedImage: string | null;       // 우측 고정 원형 이미지 (옛 ld_invite_image)
     };
     bottomFixed: {
         height: string;
@@ -195,7 +240,7 @@ export type Settings = {
     };
     quickConnect: {
         kakao: { enabled: boolean; url: string };
-        sms: { enabled: boolean; phone: string };
+        sms: { enabled: boolean; phone: string; content: string };
     };
     location: {
         address: string;
@@ -211,6 +256,7 @@ export type Settings = {
     privacyPolicy: string;
     completeMessage: string;
     enabled: EnabledFlags;
+    legacy?: LegacyFields;
 };
 
 export const FONT_OPTIONS: { key: FontKey; label: string; family: string }[] = [
@@ -255,17 +301,31 @@ export const FORM_VARIANT_LABEL: Record<FormVariant, string> = {
     custom: "커스텀",
 };
 
-export const CUSTOM_FIELD_TYPE_LABEL: Record<CustomFieldType, string> = {
-    text: "텍스트",
-    tel: "전화번호",
-    email: "이메일",
-    number: "숫자",
-    date: "날짜",
-    time: "시간",
-    select: "셀렉트",
-    radio: "라디오",
-    textarea: "긴 텍스트",
-    checkbox: "체크박스",
+// 커스텀 필드 타입별 동작 메타데이터 (라벨 · 에디터/프리뷰 분기의 단일 소스)
+// - label: 에디터의 타입 선택 옵션 라벨
+// - inputType: 프리뷰에서 일반 input으로 렌더할 때의 HTML type
+//   (checkbox/textarea/select/radio 는 별도 위젯으로 렌더되어 사용되지 않음)
+// - hasPlaceholder: 에디터에서 placeholder 입력 노출 여부
+// - hasOptions: 옵션 목록(select/radio)을 가지는지 — 에디터의 옵션 입력 / 프리뷰의 옵션 렌더 분기
+export const CUSTOM_FIELD_TYPE_META: Record<
+    CustomFieldType,
+    {
+        label: string;
+        inputType: string;
+        hasPlaceholder: boolean;
+        hasOptions: boolean;
+    }
+> = {
+    text: { label: "텍스트", inputType: "text", hasPlaceholder: true, hasOptions: false },
+    tel: { label: "전화번호", inputType: "tel", hasPlaceholder: true, hasOptions: false },
+    email: { label: "이메일", inputType: "email", hasPlaceholder: true, hasOptions: false },
+    number: { label: "숫자", inputType: "number", hasPlaceholder: true, hasOptions: false },
+    date: { label: "날짜", inputType: "date", hasPlaceholder: false, hasOptions: false },
+    time: { label: "시간", inputType: "time", hasPlaceholder: false, hasOptions: false },
+    select: { label: "셀렉트", inputType: "text", hasPlaceholder: false, hasOptions: true },
+    radio: { label: "라디오", inputType: "text", hasPlaceholder: false, hasOptions: true },
+    textarea: { label: "긴 텍스트", inputType: "text", hasPlaceholder: true, hasOptions: false },
+    checkbox: { label: "체크박스", inputType: "text", hasPlaceholder: false, hasOptions: false },
 };
 
 export const SECTION_ANIMATION_LABEL: Record<SectionAnimation, string> = {
@@ -321,6 +381,7 @@ export const initialSettings: Settings = {
         belowInviteVisible: "off",
         buttonText: "",
         businessCardImage: null,
+        fixedImage: null,
     },
     bottomFixed: {
         height: "64",
@@ -356,7 +417,7 @@ export const initialSettings: Settings = {
     },
     quickConnect: {
         kakao: { enabled: false, url: "" },
-        sms: { enabled: false, phone: "" },
+        sms: { enabled: false, phone: "", content: "" },
     },
     location: {
         address: "",
