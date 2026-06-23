@@ -76,13 +76,22 @@ function SectionBody({
                 </div>
             );
         }
+        const img = (
+            <ImageWithEffect
+                src={sec.image}
+                alt={sec.title}
+                effect={sec.effect ?? "none"}
+            />
+        );
         return (
             <div className="border-b border-slate-100">
-                <ImageWithEffect
-                    src={sec.image}
-                    alt={sec.title}
-                    effect={sec.effect ?? "none"}
-                />
+                {sec.link ? (
+                    <a href={sec.link} className="block">
+                        {img}
+                    </a>
+                ) : (
+                    img
+                )}
             </div>
         );
     }
@@ -143,6 +152,11 @@ function SectionBody({
     if (sec.type === "form") {
         return (
             <div className="border-b border-slate-100">
+                {/* formSubjectImg: 폼 박스 위에 보여주는 안내 이미지 (clickable 아님) */}
+                {sec.image ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={sec.image} alt="" className="w-full block" />
+                ) : null}
                 <FormBlock
                     variant={sec.formVariant ?? "consult"}
                     pc={pc}

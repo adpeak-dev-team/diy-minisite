@@ -117,6 +117,26 @@ export function QuickConnectButtons({
     );
 }
 
+export function FixedImageFloating({
+    src,
+    bottomOffset,
+}: {
+    src: string;
+    bottomOffset: number;
+}) {
+    return (
+        <div
+            className="absolute right-3 z-20 cursor-pointer"
+            style={{ bottom: `${bottomOffset + 16}px` }}
+        >
+            <div className="w-20 rounded-full overflow-hidden shadow-lg animate-pulse">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={src} alt="" className="w-full h-full object-cover" />
+            </div>
+        </div>
+    );
+}
+
 export function PopupOverlay({
     image,
     pc = false,

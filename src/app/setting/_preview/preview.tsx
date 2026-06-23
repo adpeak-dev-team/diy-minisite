@@ -8,9 +8,13 @@ import {
     LocationMap,
     PreviewEmpty,
     PreviewHeader,
-    SubMenuBar,
 } from "./chrome";
-import { BottomFixedBar, PopupOverlay, QuickConnectButtons } from "./overlays";
+import {
+    BottomFixedBar,
+    FixedImageFloating,
+    PopupOverlay,
+    QuickConnectButtons,
+} from "./overlays";
 import { SectionBlock } from "./sections";
 
 export type PreviewMode = "mobile" | "pc";
@@ -80,7 +84,6 @@ function PCPreview({ s, sections }: { s: Settings; sections: Section[] }) {
                             </button>
                         </div>
                     ) : null}
-                    <SubMenuBar s={s} pc />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
                         <LocationMap location={s.location} pc />
                     ) : null}
@@ -96,6 +99,12 @@ function PCPreview({ s, sections }: { s: Settings; sections: Section[] }) {
                 ) : null}
                 {s.enabled.quickConnect ? (
                     <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                ) : null}
+                {s.enabled.fixedImage && s.info.fixedImage ? (
+                    <FixedImageFloating
+                        src={s.info.fixedImage}
+                        bottomOffset={bottomOffset + 56}
+                    />
                 ) : null}
                 {s.enabled.popup && s.popupImage ? (
                     <PopupOverlay image={s.popupImage} pc />
@@ -140,7 +149,6 @@ function MobilePreview({ s, sections }: { s: Settings; sections: Section[] }) {
                             </button>
                         </div>
                     ) : null}
-                    <SubMenuBar s={s} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
                         <LocationMap location={s.location} />
                     ) : null}
@@ -156,6 +164,12 @@ function MobilePreview({ s, sections }: { s: Settings; sections: Section[] }) {
                 ) : null}
                 {s.enabled.quickConnect ? (
                     <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                ) : null}
+                {s.enabled.fixedImage && s.info.fixedImage ? (
+                    <FixedImageFloating
+                        src={s.info.fixedImage}
+                        bottomOffset={bottomOffset + 56}
+                    />
                 ) : null}
                 {s.enabled.popup && s.popupImage ? (
                     <PopupOverlay image={s.popupImage} />
