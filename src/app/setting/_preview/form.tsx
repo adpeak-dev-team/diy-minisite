@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CustomFormField, FormSectionData } from "../types";
+import { CUSTOM_FIELD_TYPE_META, CustomFormField, FormSectionData } from "../types";
 import { fontFamilyOf } from "../lib";
 
 const VISIT_TIMES = [
@@ -189,19 +189,34 @@ export function FormBlock({
                         </label>
                     </div>
 
-                    <button
-                        type="button"
-                        className="w-full py-3 rounded-lg text-sm font-medium transition"
-                        style={{ background: buttonBg, color: buttonFg }}
-                        onClick={(e) => e.preventDefault()}
-                    >
-                        {data.submitLabel ||
-                            (variant === "visit"
-                                ? "방문예약 신청"
-                                : variant === "custom"
-                                  ? "제출"
-                                  : "상담 신청")}
-                    </button>
+                    {data.buttonType === "image" && data.buttonImage ? (
+                        <button
+                            type="button"
+                            className="w-full"
+                            onClick={(e) => e.preventDefault()}
+                        >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={data.buttonImage}
+                                alt=""
+                                className="w-full block"
+                            />
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            className="w-full py-3 rounded-lg text-sm font-medium transition"
+                            style={{ background: buttonBg, color: buttonFg }}
+                            onClick={(e) => e.preventDefault()}
+                        >
+                            {data.submitLabel ||
+                                (variant === "visit"
+                                    ? "방문예약 신청"
+                                    : variant === "custom"
+                                      ? "제출"
+                                      : "상담 신청")}
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -309,14 +324,7 @@ function CustomFieldRender({
         );
     }
 
-    const inputType =
-        field.type === "tel" || field.type === "email" || field.type === "number"
-            ? field.type
-            : field.type === "date"
-              ? "date"
-              : field.type === "time"
-                ? "time"
-                : "text";
+    const inputType = CUSTOM_FIELD_TYPE_META[field.type].inputType;
 
     return (
         <div>

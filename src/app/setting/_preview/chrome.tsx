@@ -1,7 +1,8 @@
 "use client";
 
 import { Settings } from "../types";
-import { clampPct, fontFamilyOf, isLightColor, menuHref, parsePxOr } from "../lib";
+import { clampPct, fontFamilyOf, menuHref, parsePxOr } from "../lib";
+import { isLightColor } from "../color";
 
 export function PreviewHeader({
     s,
@@ -108,10 +109,15 @@ export function PreviewHeader({
             </div>
             {showMenus ? (
                 <div
-                    className={`flex items-center justify-center gap-${pc ? "6" : "4"} border-b ${pc ? "px-8 py-2.5 text-sm" : "px-4 py-2 text-xs"}`}
+                    className={`flex items-center justify-around border-b ${pc ? "text-sm" : "text-xs"}`}
                     style={{
+                        background: s.subMenus.bgColor || bg,
+                        color: s.subMenus.textColor || textColor,
                         borderBottomColor: borderColor,
-                        fontFamily: fontFamilyOf(s.header.menuFont),
+                        fontFamily: fontFamilyOf(
+                            s.header.menuFont || s.subMenus.font,
+                        ),
+                        padding: `${parsePxOr(s.subMenus.padding, pc ? 10 : 8)}px ${pc ? 32 : 16}px`,
                     }}
                 >
                     {s.header.menus.map((m) => (
@@ -119,6 +125,7 @@ export function PreviewHeader({
                             key={m.id}
                             href={menuHref(m)}
                             className="hover:opacity-80 transition"
+                            style={{ color: "inherit" }}
                         >
                             {m.name}
                         </a>
@@ -130,7 +137,11 @@ export function PreviewHeader({
 }
 
 export function SubMenuBar({ s, pc = false }: { s: Settings; pc?: boolean }) {
-    if (!s.enabled.subMenus || s.subMenus.items.length === 0) return null;
+    // 헤더 아래 메뉴 strip: 기본 > 헤더 > 메뉴 사용 토글이 source of truth.
+    // 스타일링은 옛 ld_json_menus 출처라 일단 subMenus.* 컨테이너에 보존된 값 사용.
+    if (!s.enabled.header || !s.header.menuEnabled) return null;
+    const items = s.header.menus;
+    if (items.length === 0) return null;
     return (
         <div
             data-focus-target="submenu"
@@ -140,11 +151,11 @@ export function SubMenuBar({ s, pc = false }: { s: Settings; pc?: boolean }) {
             style={{
                 background: s.subMenus.bgColor || "#F1F5F9",
                 color: s.subMenus.textColor || "#334155",
-                fontFamily: fontFamilyOf(s.subMenus.font),
+                fontFamily: fontFamilyOf(s.header.menuFont || s.subMenus.font),
                 padding: `${parsePxOr(s.subMenus.padding, 12)}px ${pc ? 16 : 8}px`,
             }}
         >
-            {s.subMenus.items.map((m) => (
+            {items.map((m) => (
                 <a
                     key={m.id}
                     href={menuHref(m)}

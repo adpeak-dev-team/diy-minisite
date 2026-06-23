@@ -1,7 +1,7 @@
 "use client";
 
 import {
-    CUSTOM_FIELD_TYPE_LABEL,
+    CUSTOM_FIELD_TYPE_META,
     CustomFieldType,
     CustomFormField,
     FormSectionData,
@@ -9,9 +9,10 @@ import {
     uid,
 } from "../types";
 import {
-    ColorPicker,
+    ColorField,
     Field,
     FontSelect,
+    ImageUploader,
     RadioPill,
 } from "../widgets";
 import { ListRowActions } from "../_ui/editable-list";
@@ -179,40 +180,132 @@ export function FormSectionEditor({
                 />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-                <Field label="배경 색상">
-                    <ColorPicker
-                        value={data.bgColor ?? "#F8FAFC"}
-                        onChange={(v) => patchData({ bgColor: v })}
-                    />
-                </Field>
-                <Field label="카드 배경">
-                    <ColorPicker
-                        value={data.cardBgColor ?? "#FFFFFF"}
-                        onChange={(v) => patchData({ cardBgColor: v })}
-                    />
-                </Field>
-                <Field label="텍스트 색상">
-                    <ColorPicker
-                        value={data.textColor ?? "#334155"}
-                        onChange={(v) => patchData({ textColor: v })}
-                    />
-                </Field>
-                <Field label="버튼 색상">
-                    <ColorPicker
-                        value={data.buttonColor ?? "#2563EB"}
-                        onChange={(v) => patchData({ buttonColor: v })}
-                    />
-                </Field>
-            </div>
-            <Field label="버튼 텍스트 색상">
-                <ColorPicker
-                    value={data.buttonTextColor ?? "#FFFFFF"}
-                    onChange={(v) => patchData({ buttonTextColor: v })}
+                <ColorField
+                    label="배경 색상"
+                    value={data.bgColor ?? "#F8FAFC"}
+                    onChange={(v) => patchData({ bgColor: v })}
                 />
-            </Field>
+                <ColorField
+                    label="카드 배경"
+                    value={data.cardBgColor ?? "#FFFFFF"}
+                    onChange={(v) => patchData({ cardBgColor: v })}
+                />
+                <ColorField
+                    label="텍스트 색상"
+                    value={data.textColor ?? "#334155"}
+                    onChange={(v) => patchData({ textColor: v })}
+                />
+                <ColorField
+                    label="버튼 색상"
+                    value={data.buttonColor ?? "#2563EB"}
+                    onChange={(v) => patchData({ buttonColor: v })}
+                />
+            </div>
+            <ColorField
+                label="버튼 텍스트 색상"
+                value={data.buttonTextColor ?? "#FFFFFF"}
+                onChange={(v) => patchData({ buttonTextColor: v })}
+            />
             <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
                 개인정보 동의 본문은 <b>약관 · 메시지</b> 탭의 &quot;개인정보 보호동의 전문&quot;에서 가져옵니다.
             </div>
+
+            <div className="mt-4 border-t border-slate-200 pt-3 space-y-2">
+                <div className="text-xs font-medium text-slate-600">
+                    상세 옵션
+                </div>
+                <Field label="폼 하단 고정 여부">
+                    <RadioPill
+                        value={data.fixedBottom ?? "nonfixed"}
+                        onChange={(v) => patchData({ fixedBottom: v })}
+                        options={[
+                            { value: "fixed", label: "고정" },
+                            { value: "nonfixed", label: "비고정" },
+                        ]}
+                    />
+                </Field>
+                <Field label="제출 버튼 컨텐츠">
+                    <RadioPill
+                        value={data.buttonType ?? "text"}
+                        onChange={(v) => patchData({ buttonType: v })}
+                        options={[
+                            { value: "text", label: "텍스트" },
+                            { value: "image", label: "이미지" },
+                        ]}
+                    />
+                </Field>
+                {(data.buttonType ?? "text") === "image" ? (
+                    <Field label="버튼 이미지">
+                        <ImageUploader
+                            value={data.buttonImage ?? null}
+                            onChange={(v) => patchData({ buttonImage: v })}
+                        />
+                    </Field>
+                ) : null}
+                <Field label="개인정보 동의 사용">
+                    <RadioPill
+                        value={data.agreeMode ?? "notuse"}
+                        onChange={(v) => patchData({ agreeMode: v })}
+                        options={[
+                            { value: "use", label: "사용" },
+                            { value: "notuse", label: "미사용" },
+                        ]}
+                    />
+                </Field>
+                {(data.agreeMode ?? "notuse") === "use" ? (
+                    <Field label="개인정보 하단 추가 문구">
+                        <AgreeAddWordsEditor
+                            words={data.agreeAddWords ?? []}
+                            onChange={(agreeAddWords) =>
+                                patchData({ agreeAddWords })
+                            }
+                        />
+                    </Field>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
+function AgreeAddWordsEditor({
+    words,
+    onChange,
+}: {
+    words: string[];
+    onChange: (next: string[]) => void;
+}) {
+    return (
+        <div className="space-y-1.5">
+            {words.map((w, i) => (
+                <div key={i} className="flex gap-1.5">
+                    <input
+                        type="text"
+                        className="input-base flex-1"
+                        value={w}
+                        onChange={(e) => {
+                            const next = [...words];
+                            next[i] = e.target.value;
+                            onChange(next);
+                        }}
+                    />
+                    <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() =>
+                            onChange(words.filter((_, idx) => idx !== i))
+                        }
+                    >
+                        삭제
+                    </button>
+                </div>
+            ))}
+            <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => onChange([...words, ""])}
+            >
+                + 문구 추가
+            </button>
         </div>
     );
 }
@@ -272,11 +365,11 @@ function CustomFieldsEditor({
                                 >
                                     {(
                                         Object.keys(
-                                            CUSTOM_FIELD_TYPE_LABEL,
+                                            CUSTOM_FIELD_TYPE_META,
                                         ) as CustomFieldType[]
                                     ).map((t) => (
                                         <option key={t} value={t}>
-                                            {CUSTOM_FIELD_TYPE_LABEL[t]}
+                                            {CUSTOM_FIELD_TYPE_META[t].label}
                                         </option>
                                     ))}
                                 </select>
@@ -303,11 +396,7 @@ function CustomFieldsEditor({
                                     필수
                                 </label>
                             </div>
-                            {f.type !== "checkbox" &&
-                            f.type !== "date" &&
-                            f.type !== "time" &&
-                            f.type !== "select" &&
-                            f.type !== "radio" ? (
+                            {CUSTOM_FIELD_TYPE_META[f.type].hasPlaceholder ? (
                                 <input
                                     type="text"
                                     className="input-base w-full text-xs"
@@ -320,7 +409,7 @@ function CustomFieldsEditor({
                                     }
                                 />
                             ) : null}
-                            {f.type === "select" || f.type === "radio" ? (
+                            {CUSTOM_FIELD_TYPE_META[f.type].hasOptions ? (
                                 <textarea
                                     rows={2}
                                     className="input-base w-full text-xs font-mono"
