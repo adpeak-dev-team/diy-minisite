@@ -267,11 +267,20 @@ function landToSettings(land: Land): Settings {
     ? contentListToSections(mainFirst.contentList)
     : [];
 
+  // ld_json_subpages 가 우선 — 신규 에디터가 source of truth 로 쓰는 컬럼.
+  // 마이그레이션 전 / 신규 생성 row 라 NULL 이면 옛 ld_json_menus + ld_pg* 로 폴백.
+  const rawSubpages = tryParseJson(land.ld_json_subpages);
+  const subPagesFromColumn = Array.isArray(rawSubpages)
+    ? transformSubPagesUrls(rawSubpages as SubPage[], (u) => resolveAsset(u))
+    : null;
   const subPagesFromMenus = menusArr.map((m, i) => menuToSubPage(m, i));
   const subPagesFromSlots = (["ld_pg0", "ld_pg1", "ld_pg2", "ld_pg3", "ld_pg4"] as const)
     .map((k, i) => parsePgSlot(land[k], i))
     .filter((p): p is SubPage => p !== null);
-  const subPages = [...subPagesFromMenus, ...subPagesFromSlots];
+  const subPages = subPagesFromColumn ?? [
+    ...subPagesFromMenus,
+    ...subPagesFromSlots,
+  ];
 
   // 마이그레이션으로 추가될 JSON 컬럼들 (현재는 없을 수 있음)
   const jsonBottom = pickRecord(tryParseJson(land.ld_json_bottom));
@@ -324,7 +333,12 @@ function landToSettings(land: Land): Settings {
       ),
       // 옛 ld_json_menus.menus 가 라이브 사이트의 헤더 아래 strip 의 메뉴들 = header.menus
       // (이름이 "하부 메뉴들" 이라 헷갈렸지만 위치는 헤더 바로 아래)
-      menuEnabled: menusArr.length > 0,
+      // menu_enabled 가 저장돼 있으면 그 값을, 없으면 메뉴 개수로 폴백.
+      // (옛 데이터엔 menu_enabled 키가 없으므로 폴백 필요)
+      menuEnabled:
+        typeof header.menu_enabled === "boolean"
+          ? header.menu_enabled
+          : menusArr.length > 0,
       menus: menusArr.map((m, i) => {
         const rec = pickRecord(m);
         return {
@@ -505,6 +519,39 @@ function stripAssetBase(url: string | null | undefined): string {
     : url;
 }
 
+// ld_json_subpages 라운드트립용 — section 내 url 필드 변환.
+// 영향 필드: image, images[].image, formData.buttonImage.
+function transformSectionUrls(
+  section: Section,
+  tx: (url: string) => string | null,
+): Section {
+  const next: Section = { ...section };
+  if (next.image) next.image = tx(next.image);
+  if (next.images) {
+    next.images = next.images.map((g) => ({
+      ...g,
+      image: tx(g.image) ?? "",
+    }));
+  }
+  if (next.formData?.buttonImage) {
+    next.formData = {
+      ...next.formData,
+      buttonImage: tx(next.formData.buttonImage),
+    };
+  }
+  return next;
+}
+
+function transformSubPagesUrls(
+  subPages: SubPage[],
+  tx: (url: string) => string | null,
+): SubPage[] {
+  return subPages.map((p) => ({
+    ...p,
+    sections: p.sections.map((sec) => transformSectionUrls(sec, tx)),
+  }));
+}
+
 function reconstructFooterLine(s: Settings): string {
   const f = s.footer;
   // 라이브 사이트가 ld_footer 를 한 줄 그대로 출력하므로 동일 포맷으로 재조립.
@@ -529,6 +576,7 @@ function reconstructFooterLine(s: Settings): string {
 
 function settingsToHeaderJson(s: Settings): string {
   // 라이브 사이트의 ld_json_header 키 스키마: logo_img/logo_width/header_padding/header_color/phone_img/top_phone_width
+  // menu_enabled — 에디터 토글 상태. 라이브 사이트는 이 키를 모름 (덧붙여진 신규 키) → 무시.
   return JSON.stringify({
     logo_img: stripAssetBase(s.header.logoImage),
     logo_width: s.header.logoSize,
@@ -537,6 +585,7 @@ function settingsToHeaderJson(s: Settings): string {
     phone_img: stripAssetBase(s.header.phoneImage),
     top_phone_width: s.header.phoneSize,
     phone_num: s.header.phoneNumber,
+    menu_enabled: s.header.menuEnabled,
   });
 }
 
@@ -804,6 +853,11 @@ export function settingsToLand(s: Settings): LandPatch {
     }),
     ld_json_location: JSON.stringify(s.location),
     ld_json_header_menus: JSON.stringify(s.header.menus),
+    // subPages 의 source of truth — header.menus 에 등록 안 된 신규 서브페이지도
+    // 여기 들어가야 reload 시 안 사라짐. URL 은 strip 해서 DB 일관성 유지.
+    ld_json_subpages: JSON.stringify(
+      transformSubPagesUrls(s.subPages, (u) => stripAssetBase(u) || null),
+    ),
   };
 }
 

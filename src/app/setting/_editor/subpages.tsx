@@ -37,6 +37,14 @@ export function SubPagesEditor({
             return;
         }
         onChange([...items, { id: uid(), slug: s, title: t, sections: [] }]);
+        // 헤더 메뉴에도 같은 slug 항목이 없으면 자동 추가.
+        // (있으면 patch 의 동기화 규칙대로 다른 곳에서 갱신될 수 있어 건드리지 않음)
+        if (!menus.some((m) => m.linkType === "subpage" && m.link === s)) {
+            onChangeMenus([
+                ...menus,
+                { id: uid(), name: t || s, link: s, linkType: "subpage" },
+            ]);
+        }
         setSlug("");
         setTitle("");
         toast.show(`/${s} 페이지가 추가되었습니다.`);
@@ -52,6 +60,12 @@ export function SubPagesEditor({
         if (!ok) return;
         if (currentPageId === p.id) onSelectPage(null);
         onChange(items.filter((x) => x.id !== p.id));
+        // 매칭되는 헤더 메뉴 항목도 함께 제거 (add 의 역연산)
+        onChangeMenus(
+            menus.filter(
+                (m) => !(m.linkType === "subpage" && m.link === p.slug),
+            ),
+        );
     };
 
     // 서브페이지 patch + 매칭되는 헤더 메뉴 항목 자동 동기화.
