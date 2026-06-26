@@ -1,6 +1,7 @@
 "use client";
 
-import { Settings } from "../types";
+import { MouseEvent } from "react";
+import { MenuItem, Settings } from "../types";
 import { clampPct, fontFamilyOf, menuHref, parsePxOr } from "../lib";
 import { isLightColor } from "../color";
 
@@ -8,10 +9,12 @@ export function PreviewHeader({
     s,
     px,
     pc = false,
+    onNavigate,
 }: {
     s: Settings;
     px: number;
     pc?: boolean;
+    onNavigate?: (pageId: string | null) => void;
 }) {
     const bg = s.header.color || "#0F172A";
     const light = isLightColor(bg);
@@ -31,11 +34,11 @@ export function PreviewHeader({
         a === "center"
             ? "justify-center"
             : a === "right"
-              ? "justify-end"
-              : "justify-start";
+                ? "justify-end"
+                : "justify-start";
 
-    const renderLogoNode = () =>
-        hasLogo ? (
+    const renderLogoNode = () => {
+        const inner = hasLogo ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
                 src={s.header.logoImage!}
@@ -48,9 +51,23 @@ export function PreviewHeader({
                 {s.info.siteName || "LOGO"}
             </div>
         );
+        // 로고 클릭 → 미리보기 메인 페이지로. onNavigate 없으면 비-인터랙티브.
+        if (!onNavigate) return inner;
+        return (
+            <button
+                type="button"
+                onClick={() => onNavigate(null)}
+                aria-label="메인으로"
+                className="contents cursor-pointer"
+            >
+                {inner}
+            </button>
+        );
+    };
 
-    const renderPhoneNode = () =>
-        s.header.phoneImage ? (
+    const renderPhoneNode = () => {
+        if (!s.header.phoneImage) return null;
+        const img = (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
                 src={s.header.phoneImage}
@@ -58,9 +75,28 @@ export function PreviewHeader({
                 style={{ width: `${phonePct}%` }}
                 className="h-auto"
             />
-        ) : null;
+        );
+        const tel = s.header.phoneNumber.replace(/[^0-9+]/g, "");
+        if (!tel) return img;
+        return (
+            <a href={`tel:${tel}`} className="contents">
+                {img}
+            </a>
+        );
+    };
 
     const showMenus = s.header.menuEnabled && s.header.menus.length > 0;
+
+    // 메뉴 클릭 시 실제 브라우저 이동 대신 미리보기 내부에서 페이지 전환.
+    // - linkType === "subpage": 슬러그로 subPage 찾아 그 id 로 전환, 없으면 메인(null)
+    // - 외부 URL: 기본 동작 유지 (preventDefault 안 함 → 새 탭/이동)
+    const handleMenuClick = (m: MenuItem) => (e: MouseEvent<HTMLAnchorElement>) => {
+        if (!onNavigate || m.linkType !== "subpage") return;
+        e.preventDefault();
+        const slug = m.link.replace(/^\/+/, "");
+        const target = s.subPages.find((p) => p.slug === slug);
+        onNavigate(target?.id ?? null);
+    };
 
     return (
         <div
@@ -76,14 +112,10 @@ export function PreviewHeader({
                 }}
             >
                 {hasLogo && hasPhoneSlot ? (
-                    <>
-                        <div className="w-1/2 flex items-center justify-start">
-                            {renderLogoNode()}
-                        </div>
-                        <div className="w-1/2 flex items-center justify-end">
-                            {renderPhoneNode()}
-                        </div>
-                    </>
+                    <div className="w-full flex items-center justify-between gap-2">
+                        {renderLogoNode()}
+                        {renderPhoneNode()}
+                    </div>
                 ) : hasLogo ? (
                     <div
                         className={`w-full flex items-center ${justifyOf(
@@ -114,9 +146,7 @@ export function PreviewHeader({
                         background: s.subMenus.bgColor || bg,
                         color: s.subMenus.textColor || textColor,
                         borderBottomColor: borderColor,
-                        fontFamily: fontFamilyOf(
-                            s.header.menuFont || s.subMenus.font,
-                        ),
+                        // 폰트 명시 안 함 → 프리뷰 프레임의 s.font 상속
                         padding: `${parsePxOr(s.subMenus.padding, pc ? 10 : 8)}px ${pc ? 32 : 16}px`,
                     }}
                 >
@@ -124,7 +154,8 @@ export function PreviewHeader({
                         <a
                             key={m.id}
                             href={menuHref(m)}
-                            className="hover:opacity-80 transition"
+                            onClick={handleMenuClick(m)}
+                            className="hover:opacity-80 transition cursor-pointer"
                             style={{ color: "inherit" }}
                         >
                             {m.name}
@@ -145,13 +176,12 @@ export function SubMenuBar({ s, pc = false }: { s: Settings; pc?: boolean }) {
     return (
         <div
             data-focus-target="submenu"
-            className={`flex flex-wrap items-center justify-center text-xs ${
-                pc ? "gap-x-6 gap-y-2" : "gap-x-3 gap-y-1 text-[11px]"
-            }`}
+            className={`flex flex-wrap items-center justify-center text-xs ${pc ? "gap-x-6 gap-y-2" : "gap-x-3 gap-y-1 text-[11px]"
+                }`}
             style={{
                 background: s.subMenus.bgColor || "#F1F5F9",
                 color: s.subMenus.textColor || "#334155",
-                fontFamily: fontFamilyOf(s.header.menuFont || s.subMenus.font),
+                // 폰트 명시 안 함 → 부모(s.font) 상속
                 padding: `${parsePxOr(s.subMenus.padding, 12)}px ${pc ? 16 : 8}px`,
             }}
         >

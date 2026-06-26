@@ -96,6 +96,29 @@ function SectionBody({
         );
     }
 
+    if (sec.type === "gallery") {
+        const images = sec.images ?? [];
+        if (images.length === 0) {
+            return (
+                <div className={`${pc ? "px-8 py-6" : "p-4"} text-xs text-slate-400 text-center border-b border-slate-100`}>
+                    {sec.title}
+                </div>
+            );
+        }
+        return (
+            <div className="border-b border-slate-100">
+                {images.map((g) => (
+                    <ImageWithEffect
+                        key={g.id}
+                        src={g.image}
+                        alt={sec.title}
+                        effect={sec.effect ?? "none"}
+                    />
+                ))}
+            </div>
+        );
+    }
+
     if (sec.type === "text") {
         return (
             <div className="border-b border-slate-100">
@@ -150,18 +173,16 @@ function SectionBody({
     }
 
     if (sec.type === "form") {
+        const formData = sec.formData ?? {};
+        const subjectType = formData.subjectType ?? "text";
         return (
-            <div className="border-b border-slate-100">
-                {/* formSubjectImg: 폼 박스 위에 보여주는 안내 이미지 (clickable 아님) */}
-                {sec.image ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={sec.image} alt="" className="w-full block" />
-                ) : null}
+            <div className="border-b border-slate-100" data-form-section="true">
                 <FormBlock
                     variant={sec.formVariant ?? "consult"}
                     pc={pc}
-                    data={sec.formData ?? {}}
+                    data={formData}
                     privacyText={privacyText}
+                    subjectImage={subjectType === "image" ? sec.image : null}
                 />
             </div>
         );

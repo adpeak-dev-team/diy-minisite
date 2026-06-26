@@ -19,6 +19,9 @@
   --font-pretendard:
     "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
     system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-suit:
+    "SUIT Variable", SUIT, -apple-system, BlinkMacSystemFont,
+    system-ui, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
 }
 
 @font-face {
@@ -30,6 +33,15 @@
     format("woff2-variations");
 }
 
+@font-face {
+  font-family: "SUIT Variable";
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  src: url("https://cdn.jsdelivr.net/gh/sunn-us/SUIT@2/fonts/variable/woff2/SUIT-Variable.woff2")
+    format("woff2-variations");
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -38,6 +50,10 @@ body {
 
 .pretendard {
   font-family: var(--font-pretendard);
+}
+
+.suit {
+  font-family: var(--font-suit);
 }
 
 @layer components {

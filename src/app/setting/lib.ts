@@ -33,6 +33,7 @@ export function parseYouTubeId(url: string): string | null {
 export const SECTION_TYPE_ICON: Record<SectionType, string> = {
     hero: "🖼️",
     image: "🏞️",
+    gallery: "🗂️",
     text: "📝",
     html: "</>",
     youtube: "▶",
@@ -42,6 +43,7 @@ export const SECTION_TYPE_ICON: Record<SectionType, string> = {
 export const SECTION_TYPE_DESC: Record<SectionType, string> = {
     hero: "배경 이미지 위에 텍스트를 얹은 메인 영역",
     image: "단일 이미지 배너",
+    gallery: "여러 이미지를 드래그로 정렬",
     text: "서식 있는 텍스트 본문",
     html: "직접 작성한 HTML 코드 삽입",
     youtube: "유튜브 영상 임베드",

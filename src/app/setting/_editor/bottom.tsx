@@ -13,18 +13,20 @@ import {
 export function BottomFixedEditor({
     value,
     onChange,
+    hasForm = false,
 }: {
     value: Settings["bottomFixed"];
     onChange: (next: Settings["bottomFixed"]) => void;
+    hasForm?: boolean;
 }) {
     return (
         <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-                <Field label="높이 (px)">
+                <Field label="높이 (px)" hint="이미지 슬롯이면 이미지 자연 높이에 맞춰 키우세요">
                     <input
                         type="number"
-                        min={40}
-                        max={120}
+                        min={10}
+                        max={240}
                         className="input-base w-full"
                         value={value.height}
                         onChange={(e) =>
@@ -43,27 +45,66 @@ export function BottomFixedEditor({
                 label="전화번호 슬롯"
                 slot={value.phone}
                 onChange={(phone) => onChange({ ...value, phone })}
+                enabledCount={enabledCount(value)}
+                onHeightChange={(height) => onChange({ ...value, height })}
             />
             <BottomSlotEditor
                 label="상담 바로가기 슬롯"
                 slot={value.consult}
                 onChange={(consult) => onChange({ ...value, consult })}
+                enabledCount={enabledCount(value)}
+                onHeightChange={(height) => onChange({ ...value, height })}
+                allowFormShortcut={hasForm}
             />
         </div>
     );
+}
+
+// 모바일 프리뷰 가로 폭 기준 (preview.tsx 의 MobilePreview 와 동일)
+const MOBILE_WIDTH = 320;
+// 바 높이 허용 범위 (BottomFixedEditor 의 height input min/max 와 동일)
+const HEIGHT_MIN = 10;
+const HEIGHT_MAX = 240;
+
+function enabledCount(bf: Settings["bottomFixed"]): number {
+    return [bf.phone, bf.consult].filter((s) => s.enabled).length;
 }
 
 function BottomSlotEditor({
     label,
     slot,
     onChange,
+    enabledCount: count,
+    onHeightChange,
+    allowFormShortcut = false,
 }: {
     label: string;
     slot: Settings["bottomFixed"]["phone"];
     onChange: (next: Settings["bottomFixed"]["phone"]) => void;
+    enabledCount: number;
+    onHeightChange: (height: string) => void;
+    allowFormShortcut?: boolean;
 }) {
     const patch = (p: Partial<Settings["bottomFixed"]["phone"]>) =>
         onChange({ ...slot, ...p });
+
+    // 이미지 업로드 시 자연 비율을 읽어 바 높이를 자동 조정.
+    // 슬롯 폭 = 모바일 폭(320) / 활성 슬롯 수.
+    const handleImageUpload = (next: string | null) => {
+        patch({ image: next });
+        if (!next || typeof window === "undefined") return;
+        const img = new window.Image();
+        img.onload = () => {
+            if (!img.naturalWidth) return;
+            const slotW = count > 1 ? MOBILE_WIDTH / count : MOBILE_WIDTH;
+            const computed = Math.round(
+                (slotW / img.naturalWidth) * img.naturalHeight,
+            );
+            const clamped = Math.max(HEIGHT_MIN, Math.min(HEIGHT_MAX, computed));
+            onHeightChange(String(clamped));
+        };
+        img.src = next;
+    };
 
     return (
         <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 space-y-2">
@@ -87,9 +128,9 @@ function BottomSlotEditor({
                         <Field label="이미지">
                             <ImageUploader
                                 value={slot.image}
-                                onChange={(v) => patch({ image: v })}
+                                onChange={handleImageUpload}
                                 aspect="wide"
-                                note="권장: 가로 384 / 세로 슬롯 높이"
+                                note="업로드 시 이미지 비율에 맞춰 하단 바 높이가 자동 조정됩니다"
                             />
                         </Field>
                     ) : (
@@ -116,15 +157,29 @@ function BottomSlotEditor({
                             />
                         ) : null}
                     </div>
-                    <Field label="링크" hint="tel:01012345678 / https://...">
-                        <input
-                            type="text"
-                            className="input-base w-full font-mono text-xs"
-                            placeholder="tel:01012345678"
-                            value={slot.link}
-                            onChange={(e) => patch({ link: e.target.value })}
-                        />
-                    </Field>
+                    {allowFormShortcut ? (
+                        <Field label="클릭 동작">
+                            <RadioPill
+                                value={slot.linkType ?? "url"}
+                                onChange={(v) => patch({ linkType: v })}
+                                options={[
+                                    { value: "form", label: "폼 바로가기" },
+                                    { value: "url", label: "링크" },
+                                ]}
+                            />
+                        </Field>
+                    ) : null}
+                    {(slot.linkType ?? "url") === "url" ? (
+                        <Field label="링크" hint="tel:01012345678 / https://...">
+                            <input
+                                type="text"
+                                className="input-base w-full font-mono text-xs"
+                                placeholder="tel:01012345678"
+                                value={slot.link}
+                                onChange={(e) => patch({ link: e.target.value })}
+                            />
+                        </Field>
+                    ) : null}
                 </>
             ) : null}
         </div>

@@ -1,18 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { SubPage, uid } from "../types";
+import { MenuItem, SubPage, uid } from "../types";
 import { useConfirm } from "../_ui/modal";
 import { useToast } from "../_ui/toast";
 
 export function SubPagesEditor({
     items,
     onChange,
+    menus,
+    onChangeMenus,
     currentPageId,
     onSelectPage,
 }: {
     items: SubPage[];
     onChange: (next: SubPage[]) => void;
+    menus: MenuItem[];
+    onChangeMenus: (next: MenuItem[]) => void;
     currentPageId: string | null;
     onSelectPage: (next: string | null) => void;
 }) {
@@ -48,6 +52,46 @@ export function SubPagesEditor({
         if (!ok) return;
         if (currentPageId === p.id) onSelectPage(null);
         onChange(items.filter((x) => x.id !== p.id));
+    };
+
+    // 서브페이지 patch + 매칭되는 헤더 메뉴 항목 자동 동기화.
+    // 메뉴와 서브페이지는 slug 로 연결됨 (menu.link === subPage.slug, linkType === "subpage")
+    // - title 변경 → 매칭 메뉴의 name 갱신
+    // - slug 변경 → 매칭 메뉴의 link 갱신 (옛 slug 로 매칭한 뒤 새 slug 로 교체)
+    const patch = (id: string, p: Partial<SubPage>) => {
+        const prev = items.find((x) => x.id === id);
+        onChange(items.map((x) => (x.id === id ? { ...x, ...p } : x)));
+
+        if (!prev) return;
+        const prevSlug = prev.slug;
+        if (!menus.some((m) => m.linkType === "subpage" && m.link === prevSlug)) {
+            return;
+        }
+        onChangeMenus(
+            menus.map((m) => {
+                if (m.linkType !== "subpage" || m.link !== prevSlug) return m;
+                return {
+                    ...m,
+                    name: p.title !== undefined ? p.title : m.name,
+                    link: p.slug !== undefined ? p.slug : m.link,
+                };
+            }),
+        );
+    };
+
+    const normalizeSlug = (id: string, raw: string) => {
+        const cleaned = raw.trim().replace(/^\/+/, "").replace(/\s+/g, "-");
+        if (!cleaned) {
+            toast.show("주소(slug)는 비울 수 없습니다.", "error");
+            return;
+        }
+        if (items.some((x) => x.id !== id && x.slug === cleaned)) {
+            toast.show("이미 존재하는 주소입니다.", "error");
+            return;
+        }
+        if (cleaned !== items.find((x) => x.id === id)?.slug) {
+            patch(id, { slug: cleaned });
+        }
     };
 
     return (
@@ -97,20 +141,37 @@ export function SubPagesEditor({
                                         : "bg-slate-50 border-slate-200"
                                 }`}
                             >
-                                <span className="text-xs font-mono text-blue-600">
-                                    /{p.slug}
-                                </span>
-                                {p.title ? (
-                                    <span className="text-xs text-slate-600 truncate">
-                                        {p.title}
+                                <div className="flex items-center gap-0.5 shrink-0">
+                                    <span className="text-xs font-mono text-blue-600">
+                                        /
                                     </span>
-                                ) : null}
-                                <span className="text-[10px] text-slate-400">
-                                    · 섹션 {p.sections.length}개
+                                    <input
+                                        type="text"
+                                        className="input-base text-xs font-mono w-24"
+                                        value={p.slug}
+                                        onChange={(e) =>
+                                            patch(p.id, { slug: e.target.value })
+                                        }
+                                        onBlur={(e) =>
+                                            normalizeSlug(p.id, e.target.value)
+                                        }
+                                    />
+                                </div>
+                                <input
+                                    type="text"
+                                    className="input-base text-xs flex-1 min-w-0"
+                                    placeholder="페이지 제목"
+                                    value={p.title}
+                                    onChange={(e) =>
+                                        patch(p.id, { title: e.target.value })
+                                    }
+                                />
+                                <span className="text-[10px] text-slate-400 shrink-0">
+                                    섹션 {p.sections.length}개
                                 </span>
                                 <button
                                     type="button"
-                                    className={`ml-auto btn btn-xs ${
+                                    className={`shrink-0 btn btn-xs ${
                                         active ? "btn-primary" : "btn-outline"
                                     }`}
                                     onClick={() =>
@@ -121,7 +182,7 @@ export function SubPagesEditor({
                                 </button>
                                 <button
                                     type="button"
-                                    className="text-slate-400 hover:text-red-500 text-sm"
+                                    className="shrink-0 text-slate-400 hover:text-red-500 text-sm"
                                     onClick={() => remove(p)}
                                     aria-label="삭제"
                                 >

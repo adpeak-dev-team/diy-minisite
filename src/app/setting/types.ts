@@ -1,4 +1,8 @@
-export type HeaderStyle = "fix" | "interaction";
+// 헤더 스크롤 동작 모드:
+// - fix: 항상 상단에 고정 (sticky)
+// - nonfix: 페이지 최상단에만 위치, 스크롤 시 함께 사라짐 (in-flow)
+// - interaction: 최상단에 위치하다 스크롤 다운 시 고정 헤더가 슬라이드 인 / 업 시 슬라이드 아웃
+export type HeaderStyle = "fix" | "nonfix" | "interaction";
 export type FontKey =
     | "pretendard"
     | "noto-sans-kr"
@@ -19,6 +23,7 @@ export type HeaderAlign = "left" | "center" | "right";
 export type SectionType =
     | "hero"
     | "image"
+    | "gallery"
     | "text"
     | "html"
     | "youtube"
@@ -65,6 +70,8 @@ export type SectionAnimation =
 export type HeroTextPosition = "top" | "center" | "bottom";
 export type CountdownPosition = "top" | "bottom" | "floating";
 export type BottomSlotMode = "image" | "text";
+// 클릭 시 동작 — "url" 은 link 로 이동, "form" 은 페이지 내 마지막 폼으로 스크롤.
+export type FixedLinkType = "url" | "form";
 
 export type BottomSlot = {
     enabled: boolean;
@@ -74,17 +81,29 @@ export type BottomSlot = {
     bgColor: string;
     textColor: string;
     link: string;
+    linkType?: FixedLinkType;
 };
 
 // 옛 contentList 항목 한 개의 원본 형태 (formInviteImg, formButtonImg, formAgree 등
 // 새 에디터 UI엔 노출 안 되지만 저장 시 보존해야 하는 키들).
 export type LegacyContentItem = Record<string, unknown>;
 
+// gallery(여러 이미지) 섹션의 항목.
+// - id: 드래그 정렬 안정성을 위한 고유 키 (URL 중복 가능성 회피)
+// - image: 이미지 url
+// - legacy: 옛 imgList 항목 원본 (url 외 부가 키 보존)
+export type GalleryImage = {
+    id: string;
+    image: string;
+    legacy?: Record<string, unknown>;
+};
+
 export type Section = {
     id: string;
     type: SectionType;
     title: string;
     image: string | null;
+    images?: GalleryImage[];           // gallery 타입에서 사용 (드래그로 순서 변경 가능)
     content: string;
     link?: string;                     // 이미지 클릭 시 이동할 URL (옛 formInviteImg 등)
     effect?: ImageEffect;
@@ -120,6 +139,10 @@ export type SubPage = {
 };
 
 export type FormSectionData = {
+    // 폼 박스 상단 "양식 제목" 영역을 텍스트로 보일지 이미지로 보일지.
+    // 기본값은 "text" — 비어있으면 양식 종류별 기본 문구가 placeholder 로 노출.
+    // "image" 면 Section.image (옛 formSubjectImg) 로 렌더.
+    subjectType?: "text" | "image";
     title?: string;
     nameLabel?: string;
     namePlaceholder?: string;
@@ -196,11 +219,12 @@ export type Settings = {
         phoneImage: string | null;
         phoneSize: string;
         phoneAlign: HeaderAlign;
+        phoneNumber: string;  // 전화번호 이미지 클릭 시 연결할 tel: 번호
+
         color: string;
         padding: string;
         menuEnabled: boolean;
         menus: MenuItem[];
-        menuFont: FontKey;
     };
     sections: Section[];
     subPages: SubPage[];
@@ -221,6 +245,8 @@ export type Settings = {
         buttonText: string;
         businessCardImage: string | null;
         fixedImage: string | null;       // 우측 고정 원형 이미지 (옛 ld_invite_image)
+        fixedImageLink: string;          // 클릭 시 이동할 url (linkType === "url" 일 때)
+        fixedImageLinkType: FixedLinkType; // "url" 외 이동 / "form" 페이지 마지막 폼으로 스크롤
     };
     bottomFixed: {
         height: string;
@@ -278,6 +304,7 @@ export const FONT_OPTIONS: { key: FontKey; label: string; family: string }[] = [
 export const SECTION_TYPE_LABEL: Record<SectionType, string> = {
     hero: "이미지 + 텍스트",
     image: "이미지",
+    gallery: "여러 이미지",
     text: "텍스트",
     html: "HTML",
     youtube: "유튜브",
@@ -357,11 +384,11 @@ export const initialSettings: Settings = {
         phoneImage: null,
         phoneSize: "100",
         phoneAlign: "right",
+        phoneNumber: "",
         color: "#0F172A",
         padding: "12",
         menuEnabled: false,
         menus: [],
-        menuFont: "pretendard",
     },
     sections: [],
     subPages: [],
@@ -382,6 +409,8 @@ export const initialSettings: Settings = {
         buttonText: "",
         businessCardImage: null,
         fixedImage: null,
+        fixedImageLink: "",
+        fixedImageLinkType: "url",
     },
     bottomFixed: {
         height: "64",

@@ -1,6 +1,22 @@
 "use client";
 
 import {
+    DndContext,
+    DragEndEvent,
+    PointerSensor,
+    closestCenter,
+    useSensor,
+    useSensors,
+} from "@dnd-kit/core";
+import {
+    SortableContext,
+    arrayMove,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+    GalleryImage,
     HeroTextPosition,
     IMAGE_EFFECT_LABEL,
     ImageEffect,
@@ -21,6 +37,7 @@ import { ListRowActions } from "../_ui/editable-list";
 import { useConfirm } from "../_ui/modal";
 import { SECTION_TYPE_DESC, SECTION_TYPE_ICON } from "../lib";
 import { FormSectionEditor } from "./form";
+import { useImageLifecycle } from "./image-lifecycle";
 
 const SECTION_TYPES = Object.keys(SECTION_TYPE_LABEL) as SectionType[];
 
@@ -220,7 +237,7 @@ function SectionEffects({
                     )}
                 </select>
             </div>
-            {sec.type === "image" || sec.type === "hero" ? (
+            {sec.type === "image" || sec.type === "hero" || sec.type === "gallery" ? (
                 <div className="flex items-center gap-1.5">
                     <span className="text-xs text-slate-500">효과</span>
                     <select
@@ -288,6 +305,14 @@ function SectionBody({
             />
         );
     }
+    if (sec.type === "gallery") {
+        return (
+            <GalleryEditor
+                images={sec.images ?? []}
+                onChange={(next) => onPatch({ images: next })}
+            />
+        );
+    }
     if (sec.type === "youtube") {
         return (
             <input
@@ -319,5 +344,132 @@ function SectionBody({
             onChange={(e) => onPatch({ content: e.target.value })}
             placeholder="<div>...</div>"
         />
+    );
+}
+
+function GalleryEditor({
+    images,
+    onChange,
+}: {
+    images: GalleryImage[];
+    onChange: (next: GalleryImage[]) => void;
+}) {
+    const lifecycle = useImageLifecycle();
+    // PointerSensor 의 distance 임계값을 두지 않으면 삭제 버튼 클릭이 드래그로 오인됨.
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    );
+
+    const handleDragEnd = (e: DragEndEvent) => {
+        const { active, over } = e;
+        if (!over || active.id === over.id) return;
+        const oldIndex = images.findIndex((g) => g.id === String(active.id));
+        const newIndex = images.findIndex((g) => g.id === String(over.id));
+        if (oldIndex < 0 || newIndex < 0) return;
+        onChange(arrayMove(images, oldIndex, newIndex));
+    };
+
+    const itemIds = images.map((g) => g.id);
+
+    return (
+        <div className="space-y-2">
+            {images.length > 0 ? (
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                >
+                    <SortableContext
+                        items={itemIds}
+                        strategy={verticalListSortingStrategy}
+                    >
+                        <ul className="space-y-1.5">
+                            {images.map((g, i) => (
+                                <SortableImageRow
+                                    key={g.id}
+                                    id={g.id}
+                                    src={g.image}
+                                    index={i}
+                                    onRemove={() => {
+                                        lifecycle.markRemoved(g.image);
+                                        onChange(images.filter((_, idx) => idx !== i));
+                                    }}
+                                />
+                            ))}
+                        </ul>
+                    </SortableContext>
+                </DndContext>
+            ) : (
+                <div className="text-xs text-slate-400 py-6 text-center border border-dashed border-slate-300 rounded-lg">
+                    아래 버튼으로 이미지를 추가해주세요.
+                </div>
+            )}
+            <MultiImagePicker
+                label="+ 이미지 추가"
+                onPick={(urls) =>
+                    onChange([
+                        ...images,
+                        ...urls.map((url) => ({ id: uid(), image: url })),
+                    ])
+                }
+            />
+        </div>
+    );
+}
+
+function SortableImageRow({
+    id,
+    src,
+    index,
+    onRemove,
+}: {
+    id: string;
+    src: string;
+    index: number;
+    onRemove: () => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+        useSortable({ id });
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : undefined,
+    };
+    return (
+        <li
+            ref={setNodeRef}
+            style={style}
+            className={`flex items-center gap-2 bg-white border border-slate-200 rounded-md p-2 ${
+                isDragging ? "shadow-lg z-10 relative" : ""
+            }`}
+        >
+            <button
+                type="button"
+                {...attributes}
+                {...listeners}
+                className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-700 px-1 text-sm leading-none"
+                aria-label="드래그하여 순서 변경"
+                title="드래그하여 순서 변경"
+            >
+                ⋮⋮
+            </button>
+            <span className="text-[10px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded">
+                #{index + 1}
+            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+                src={src}
+                alt=""
+                className="w-12 h-12 object-cover rounded border border-slate-200"
+            />
+            <div className="flex-1 text-[11px] text-slate-500 truncate">{src}</div>
+            <button
+                type="button"
+                className="px-2 h-7 rounded-md text-red-600 hover:bg-red-50 text-xs font-medium"
+                onClick={onRemove}
+            >
+                삭제
+            </button>
+        </li>
     );
 }

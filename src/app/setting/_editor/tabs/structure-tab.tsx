@@ -20,7 +20,7 @@ export function StructureTab({
     pageSections: Section[];
     setPageSections: (next: Section[]) => void;
 }) {
-    const { s, update, updateEnabled, updateSubMenus } = useSettings();
+    const { s, update, updateEnabled, updateHeader, updateSubMenus } = useSettings();
     return (
         <>
             <AccordionSection
@@ -45,6 +45,8 @@ export function StructureTab({
                 <SubPagesEditor
                     items={s.subPages}
                     onChange={(items) => update("subPages", items)}
+                    menus={s.header.menus}
+                    onChangeMenus={(menus) => updateHeader("menus", menus)}
                     currentPageId={currentPageId}
                     onSelectPage={setCurrentPageId}
                 />

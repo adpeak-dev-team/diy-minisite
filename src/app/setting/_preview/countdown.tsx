@@ -30,6 +30,10 @@ export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }
         ? parsePxOr(s.bottomFixed.height, 64)
         : 0;
 
+    // "스크롤 시 고정" 처리 — top 위치일 땐 헤더 스타일에 종속:
+    // - fix: 헤더 바로 아래 sticky (기존 동작)
+    // - nonfix: 헤더가 in-flow 라 따로 sticky 안 함 (헤더와 같이 스크롤 아웃)
+    // - interaction: 슬라이딩 헤더 오버레이 안에 함께 렌더되므로 여기선 sticky 안 함
     const stickyStyle: React.CSSProperties = !s.countdown.sticky
         ? {}
         : s.countdown.position === "bottom"
@@ -38,11 +42,13 @@ export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }
                 bottom: `${bottomOffset}px`,
                 zIndex: 5,
             }
-          : {
-                position: "sticky",
-                top: `${headerH}px`,
-                zIndex: 5,
-            };
+          : s.headerStyle === "fix"
+            ? {
+                  position: "sticky",
+                  top: `${headerH}px`,
+                  zIndex: 5,
+              }
+            : {};
 
     const fontFamily = fontFamilyOf(s.countdown.font);
     const fg = s.countdown.textColor || "#FFFFFF";

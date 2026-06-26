@@ -2,7 +2,6 @@
 
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { getSettings, putSettings } from "./api";
 import {
     EditorPanel,
     EditorTabs,
@@ -13,14 +12,19 @@ import { Preview, PreviewMode } from "./_preview/preview";
 import { ModalProvider, useConfirm } from "./_ui/modal";
 import { ToastProvider, useToast } from "./_ui/toast";
 import { initialSettings, Settings } from "./types";
-import { AutoFocusContext } from "./widgets";
+import { AutoFocusContext, DomainContext } from "./widgets";
 import { clearAutosave, deleteDraft, Draft, saveDraft } from "./_editor/drafts";
+import {
+    ImageLifecycleProvider,
+    useImageLifecycle,
+} from "./_editor/image-lifecycle";
 import {
     AutosaveStatus,
     DraftsMenu,
     RestoreBanner,
     useDrafts,
 } from "./_editor/drafts-ui";
+import { useSaveSettings, useSettings } from "@/service/setting";
 
 type LoadState =
     | { status: "idle" }
@@ -39,7 +43,9 @@ export default function SettingPage() {
     return (
         <ToastProvider>
             <ModalProvider>
-                <SettingPageInner />
+                <ImageLifecycleProvider>
+                    <SettingPageInner />
+                </ImageLifecycleProvider>
             </ModalProvider>
         </ToastProvider>
     );
@@ -51,49 +57,68 @@ function SettingPageInner() {
     const toast = useToast();
     const confirm = useConfirm();
     const searchParams = useSearchParams();
-    const domain = searchParams.get("domain");
+    const queryDomain = searchParams.get("domain");
+    // SvelteKit 시절 `url.host.split('.')[0]` 패턴과 동일.
+    // SSR 안전을 위해 mount 후에 window.location 에서 추출.
+    const [hostDomain, setHostDomain] = useState<string | null>(null);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const host = window.location.hostname;
+        if (!host.includes(".")) return; // 'localhost' 단독
+        const first = host.split(".")[0];
+        if (!first || first === "www" || /^\d+$/.test(first)) return; // IP, www
+        setHostDomain(first);
+    }, []);
+    const domain = queryDomain ?? hostDomain;
     const [s, setS] = useState<Settings>(initialSettings);
     const [autoFocus, setAutoFocus] = useState(true);
     const [mode, setMode] = useState<PreviewMode>("pc");
     const [currentPageId, setCurrentPageId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>("basic");
     const [pane, setPane] = useState<Pane>("editor");
-    const [load, setLoad] = useState<LoadState>(
-        domain ? { status: "loading" } : { status: "idle" },
-    );
-    const [saving, setSaving] = useState(false);
 
+    // 서버 baseline (query) ↔ 편집중 s (로컬) 분리.
+    // 자동 refetch 는 QueryProvider 기본설정으로 꺼져 있어 s 가 덮어써질 일 없음.
+    const settingsQuery = useSettings(domain);
+    const saveMutation = useSaveSettings();
+    const saving = saveMutation.isPending;
+
+    // baseline 도착(또는 도메인 변경) 시 s 동기화. fetch 성공 시 1회.
     useEffect(() => {
         if (!domain) {
-            setLoad({ status: "idle" });
             setS(initialSettings);
             setCurrentPageId(null);
             return;
         }
-        let aborted = false;
-        setLoad({ status: "loading" });
-        getSettings(domain)
-            .then((next) => {
-                if (aborted) return;
-                setS({ ...next, domain });
-                setCurrentPageId(null);
-                setLoad({ status: "ready" });
-            })
-            .catch((err: unknown) => {
-                if (aborted) return;
-                // 백엔드 미구현/오류여도 편집은 계속 가능하게 fallback
-                setS({ ...initialSettings, domain });
-                setCurrentPageId(null);
-                setLoad({
-                    status: "error",
-                    message:
-                        err instanceof Error ? err.message : String(err),
-                });
-            });
-        return () => {
-            aborted = true;
-        };
-    }, [domain]);
+        if (settingsQuery.data) {
+            setS({ ...settingsQuery.data, domain });
+            setCurrentPageId(null);
+        }
+    }, [domain, settingsQuery.data]);
+
+    // 에러여도 편집은 계속 가능하게 빈 설정으로 폴백 (기존 동작 유지)
+    useEffect(() => {
+        if (domain && settingsQuery.isError) {
+            setS({ ...initialSettings, domain });
+            setCurrentPageId(null);
+        }
+    }, [domain, settingsQuery.isError]);
+
+    const load: LoadState = !domain
+        ? { status: "idle" }
+        : settingsQuery.isPending
+            ? { status: "loading" }
+            : settingsQuery.isError
+                ? {
+                      status: "error",
+                      message:
+                          settingsQuery.error instanceof Error
+                              ? settingsQuery.error.message
+                              : String(settingsQuery.error),
+                  }
+                : { status: "ready" };
+
+    const lifecycle = useImageLifecycle();
 
     const handleSave = useCallback(async () => {
         if (!domain) {
@@ -101,9 +126,10 @@ function SettingPageInner() {
             toast.show("도메인 정보가 없어 로컬 로그만 출력했습니다.", "info");
             return;
         }
-        setSaving(true);
         try {
-            await putSettings(domain, s);
+            await saveMutation.mutateAsync({ domain, settings: s });
+            // 저장 성공 후 — 교체/삭제된 옛 이미지를 GCS 에서 정리.
+            await lifecycle.commit();
             clearAutosave(domain);
             toast.show(`'${domain}' 저장되었습니다.`);
         } catch (err) {
@@ -111,10 +137,20 @@ function SettingPageInner() {
                 `저장 실패: ${err instanceof Error ? err.message : String(err)}`,
                 "error",
             );
-        } finally {
-            setSaving(false);
         }
-    }, [domain, s, toast]);
+    }, [domain, s, toast, saveMutation, lifecycle]);
+
+    // 페이지 이탈 (F5 / 탭 닫기 / 다른 페이지 이동) 시 저장 안 된 업로드 이미지 정리.
+    // sendBeacon 으로 best-effort cleanup.
+    useEffect(() => {
+        const onUnload = () => lifecycle.flushOrphansOnUnload();
+        window.addEventListener("beforeunload", onUnload);
+        return () => {
+            window.removeEventListener("beforeunload", onUnload);
+            // 컴포넌트 언마운트 시 (e.g., 다른 라우트로 이동) 도 정리.
+            lifecycle.flushOrphansOnUnload();
+        };
+    }, [lifecycle]);
 
     const handleReset = useCallback(async () => {
         const ok = await confirm({
@@ -184,7 +220,8 @@ function SettingPageInner() {
 
     return (
         <AutoFocusContext.Provider value={autoFocus}>
-            <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 pretendard overflow-hidden">
+        <DomainContext.Provider value={domain ?? ""}>
+            <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 suit overflow-hidden">
                 {/* Mobile-only pane toggle */}
                 <div className="lg:hidden shrink-0 px-3 py-2 bg-white border-b border-slate-200 flex justify-center">
                     <PaneTabs pane={pane} onChange={setPane} />
@@ -196,9 +233,14 @@ function SettingPageInner() {
                         pane === "preview" ? "flex" : "hidden"
                     } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col items-center p-4 sm:p-6 overflow-auto`}
                 >
-                    <div className="flex flex-col items-center gap-5 my-auto min-w-fit">
+                    <div className="flex flex-col items-center gap-5 my-auto w-full">
                         <PreviewModeToggle mode={mode} onChange={setMode} />
-                        <Preview s={s} mode={mode} currentPageId={currentPageId} />
+                        <Preview
+                            s={s}
+                            mode={mode}
+                            currentPageId={currentPageId}
+                            onNavigate={setCurrentPageId}
+                        />
                         <AutoFocusToggle
                             value={autoFocus}
                             onChange={setAutoFocus}
@@ -304,6 +346,7 @@ function SettingPageInner() {
                     </div>
                 </div>
             </div>
+        </DomainContext.Provider>
         </AutoFocusContext.Provider>
     );
 }

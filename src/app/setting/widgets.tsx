@@ -11,8 +11,14 @@ import {
 } from "react";
 import { FONT_OPTIONS, FontKey, OnOff } from "./types";
 import { toSwatchHex } from "./color";
+import { uploadImages } from "./api";
+import { useImageLifecycle } from "./_editor/image-lifecycle";
 
 export const AutoFocusContext = createContext(false);
+
+// 이미지 업로드 시 GCS 폴더 prefix 로 쓰이는 현재 사이트 도메인.
+// 빈 문자열이면 업로드 불가 (도메인 로드 전 / no-domain 모드).
+export const DomainContext = createContext<string>("");
 
 export function Toggle({
     on,
@@ -551,13 +557,43 @@ export function ImageUploader({
     aspect?: "default" | "square" | "wide";
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
+    const domain = useContext(DomainContext);
+    const lifecycle = useImageLifecycle();
+    const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files ?? []);
-        if (files.length === 0) return;
-        const url = URL.createObjectURL(files[0]);
-        onChange(url);
         e.target.value = "";
+        if (files.length === 0) return;
+        if (!domain) {
+            setError("도메인 정보가 없어 업로드할 수 없습니다.");
+            return;
+        }
+        setError(null);
+        setUploading(true);
+        try {
+            const [url] = await uploadImages(domain, [files[0]]);
+            if (url) {
+                // 기존 값이 있던 자리를 교체하는 경우 → 이전 이미지 라이프사이클 처리
+                if (value) lifecycle.markRemoved(value);
+                lifecycle.markUploaded(url);
+                onChange(url);
+            }
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? `업로드 실패: ${err.message}`
+                    : "업로드 실패",
+            );
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleClear = () => {
+        if (value) lifecycle.markRemoved(value);
+        onChange(null);
     };
 
     const aspectClass =
@@ -581,51 +617,66 @@ export function ImageUploader({
                     />
                     <button
                         type="button"
-                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white text-xs flex items-center justify-center hover:bg-red-600 transition"
-                        onClick={() => onChange(null)}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/60 text-white text-xs flex items-center justify-center hover:bg-red-600 transition disabled:opacity-50 disabled:cursor-default"
+                        onClick={handleClear}
                         aria-label="삭제"
+                        disabled={uploading}
                     >
                         ×
                     </button>
                     <button
                         type="button"
-                        className="absolute bottom-1.5 left-1.5 px-2 h-6 rounded-full bg-black/60 text-white text-[11px] font-medium hover:bg-blue-600 transition"
+                        className="absolute bottom-1.5 left-1.5 px-2 h-6 rounded-full bg-black/60 text-white text-[11px] font-medium hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-default"
                         onClick={() => inputRef.current?.click()}
+                        disabled={uploading}
                     >
-                        교체
+                        {uploading ? "업로드 중…" : "교체"}
                     </button>
                 </div>
             ) : (
                 <button
                     type="button"
-                    className={`${aspectClass} w-full rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50 text-xs text-slate-500 flex flex-col items-center justify-center gap-1 transition`}
+                    className={`${aspectClass} w-full rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 hover:bg-blue-50 text-xs text-slate-500 flex flex-col items-center justify-center gap-1 transition disabled:cursor-default disabled:opacity-70`}
                     onClick={() => inputRef.current?.click()}
+                    disabled={uploading}
                 >
-                    <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.5}
-                            d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                    </svg>
-                    <span>이미지 업로드</span>
+                    {uploading ? (
+                        <>
+                            <Spinner />
+                            <span>업로드 중…</span>
+                        </>
+                    ) : (
+                        <>
+                            <svg
+                                className="w-6 h-6"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={1.5}
+                                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                                />
+                            </svg>
+                            <span>이미지 업로드</span>
+                        </>
+                    )}
                 </button>
             )}
             <input
                 ref={inputRef}
                 type="file"
                 accept="image/*"
-                multiple
                 className="hidden"
                 onChange={handleFile}
             />
-            {note ? <div className="field-hint mt-1">{note}</div> : null}
+            {error ? (
+                <div className="text-[11px] text-red-600 mt-1">{error}</div>
+            ) : note ? (
+                <div className="field-hint mt-1">{note}</div>
+            ) : null}
         </div>
     );
 }
@@ -638,20 +689,47 @@ export function MultiImagePicker({
     label?: string;
 }) {
     const inputRef = useRef<HTMLInputElement>(null);
-    const handle = (e: ChangeEvent<HTMLInputElement>) => {
+    const domain = useContext(DomainContext);
+    const lifecycle = useImageLifecycle();
+    const [uploading, setUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const handle = async (e: ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files ?? []);
-        if (files.length === 0) return;
-        onPick(files.map((f) => URL.createObjectURL(f)));
         e.target.value = "";
+        if (files.length === 0) return;
+        if (!domain) {
+            setError("도메인 정보가 없어 업로드할 수 없습니다.");
+            return;
+        }
+        setError(null);
+        setUploading(true);
+        try {
+            const urls = await uploadImages(domain, files);
+            if (urls.length > 0) {
+                urls.forEach((u) => lifecycle.markUploaded(u));
+                onPick(urls);
+            }
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? `업로드 실패: ${err.message}`
+                    : "업로드 실패",
+            );
+        } finally {
+            setUploading(false);
+        }
     };
+
     return (
         <>
             <button
                 type="button"
-                className="btn btn-secondary w-full"
+                className="btn btn-secondary w-full disabled:opacity-60 disabled:cursor-default"
                 onClick={() => inputRef.current?.click()}
+                disabled={uploading}
             >
-                {label}
+                {uploading ? "업로드 중…" : label}
             </button>
             <input
                 ref={inputRef}
@@ -661,6 +739,35 @@ export function MultiImagePicker({
                 className="hidden"
                 onChange={handle}
             />
+            {error ? (
+                <div className="text-[11px] text-red-600 mt-1">{error}</div>
+            ) : null}
         </>
+    );
+}
+
+function Spinner() {
+    return (
+        <svg
+            className="w-5 h-5 animate-spin text-slate-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden
+        >
+            <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeOpacity="0.25"
+                strokeWidth="3"
+            />
+            <path
+                d="M22 12a10 10 0 0 1-10 10"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+            />
+        </svg>
     );
 }

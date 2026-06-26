@@ -6,51 +6,15 @@ import {
     Field,
     FontSelect,
     ImageUploader,
-    OnOffPill,
     RadioPill,
     Toggle,
 } from "../../widgets";
 import { useSettings } from "./context";
 
 export function MarketingTab() {
-    const { s, update, updateInfo, updateEnabled } = useSettings();
+    const { s, update, updateEnabled } = useSettings();
     return (
         <>
-            <AccordionSection title="초대 문구 · 버튼" desc="메인 CTA 영역">
-                <Field label="초대 문구">
-                    <div className="flex gap-2 items-center">
-                        <input
-                            type="text"
-                            className="input-base flex-1"
-                            value={s.info.inviteText}
-                            onChange={(e) =>
-                                updateInfo("inviteText", e.target.value)
-                            }
-                        />
-                        <OnOffPill
-                            value={s.info.inviteVisible}
-                            onChange={(v) => updateInfo("inviteVisible", v)}
-                        />
-                    </div>
-                </Field>
-                <Field label="초대 아래 영역">
-                    <OnOffPill
-                        value={s.info.belowInviteVisible}
-                        onChange={(v) => updateInfo("belowInviteVisible", v)}
-                    />
-                </Field>
-                <Field label="버튼 문구">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        value={s.info.buttonText}
-                        onChange={(e) =>
-                            updateInfo("buttonText", e.target.value)
-                        }
-                    />
-                </Field>
-            </AccordionSection>
-
             <AccordionSection
                 title="팝업 이미지"
                 desc="첫 방문 시 표시되는 팝업"

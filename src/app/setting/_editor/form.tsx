@@ -29,6 +29,14 @@ export function FormSectionEditor({
     const patchData = (p: Partial<FormSectionData>) =>
         onPatch({ formData: { ...data, ...p } });
 
+    const subjectType = data.subjectType ?? "text";
+    const subjectPlaceholder =
+        variant === "visit"
+            ? "방문예약"
+            : variant === "custom"
+              ? "신청 양식"
+              : "빠른상담신청";
+
     return (
         <div className="space-y-2">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -43,21 +51,35 @@ export function FormSectionEditor({
                     ]}
                 />
             </div>
-            <Field label="제목">
-                <input
-                    type="text"
-                    className="input-base w-full"
-                    placeholder={
-                        variant === "visit"
-                            ? "방문예약"
-                            : variant === "custom"
-                              ? "신청 양식"
-                              : "빠른상담신청"
-                    }
-                    value={data.title ?? ""}
-                    onChange={(e) => patchData({ title: e.target.value })}
+            <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs text-slate-500">양식 제목</span>
+                <RadioPill
+                    value={subjectType}
+                    onChange={(v) => patchData({ subjectType: v })}
+                    options={[
+                        { value: "text", label: "텍스트" },
+                        { value: "image", label: "이미지" },
+                    ]}
                 />
-            </Field>
+            </div>
+            {subjectType === "image" ? (
+                <Field label="제목 이미지" hint="양식 박스 위에 표시될 안내 이미지 (formSubjectImg)">
+                    <ImageUploader
+                        value={sec.image}
+                        onChange={(v) => onPatch({ image: v })}
+                    />
+                </Field>
+            ) : (
+                <Field label="제목 텍스트">
+                    <input
+                        type="text"
+                        className="input-base w-full"
+                        placeholder={subjectPlaceholder}
+                        value={data.title ?? ""}
+                        onChange={(e) => patchData({ title: e.target.value })}
+                    />
+                </Field>
+            )}
             {variant === "custom" ? (
                 <CustomFieldsEditor
                     fields={data.customFields ?? []}
@@ -138,41 +160,32 @@ export function FormSectionEditor({
                     </Field>
                 </div>
             ) : null}
-            <div className="grid grid-cols-2 gap-3">
-                <Field label="동의 제목">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        placeholder="개인정보 수집 및 이용 동의"
-                        value={data.consentTitle ?? ""}
-                        onChange={(e) =>
-                            patchData({ consentTitle: e.target.value })
-                        }
-                    />
-                </Field>
-                <Field label="동의 체크박스 문구">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        placeholder="개인정보 수집 이용에 동의합니다."
-                        value={data.consentLabel ?? ""}
-                        onChange={(e) =>
-                            patchData({ consentLabel: e.target.value })
-                        }
-                    />
-                </Field>
-            </div>
-            <Field label="제출 버튼 문구">
-                <input
-                    type="text"
-                    className="input-base w-full"
-                    placeholder={
-                        variant === "visit" ? "방문예약 신청" : "상담 신청"
-                    }
-                    value={data.submitLabel ?? ""}
-                    onChange={(e) => patchData({ submitLabel: e.target.value })}
-                />
-            </Field>
+            {(data.agreeMode ?? "notuse") === "use" ? (
+                <div className="grid grid-cols-2 gap-3">
+                    <Field label="동의 제목">
+                        <input
+                            type="text"
+                            className="input-base w-full"
+                            placeholder="개인정보 수집 및 이용 동의"
+                            value={data.consentTitle ?? ""}
+                            onChange={(e) =>
+                                patchData({ consentTitle: e.target.value })
+                            }
+                        />
+                    </Field>
+                    <Field label="동의 체크박스 문구">
+                        <input
+                            type="text"
+                            className="input-base w-full"
+                            placeholder="개인정보 수집 이용에 동의합니다."
+                            value={data.consentLabel ?? ""}
+                            onChange={(e) =>
+                                patchData({ consentLabel: e.target.value })
+                            }
+                        />
+                    </Field>
+                </div>
+            ) : null}
             <Field label="폰트">
                 <FontSelect
                     value={data.font ?? "pretendard"}
@@ -206,9 +219,11 @@ export function FormSectionEditor({
                 value={data.buttonTextColor ?? "#FFFFFF"}
                 onChange={(v) => patchData({ buttonTextColor: v })}
             />
-            <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
-                개인정보 동의 본문은 <b>약관 · 메시지</b> 탭의 &quot;개인정보 보호동의 전문&quot;에서 가져옵니다.
-            </div>
+            {(data.agreeMode ?? "notuse") === "use" ? (
+                <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-100 rounded px-2 py-1.5">
+                    개인정보 동의 본문은 <b>약관 · 메시지</b> 탭의 &quot;개인정보 보호동의 전문&quot;에서 가져옵니다.
+                </div>
+            ) : null}
 
             <div className="mt-4 border-t border-slate-200 pt-3 space-y-2">
                 <div className="text-xs font-medium text-slate-600">
@@ -241,11 +256,38 @@ export function FormSectionEditor({
                             onChange={(v) => patchData({ buttonImage: v })}
                         />
                     </Field>
-                ) : null}
+                ) : (
+                    <Field label="버튼 문구">
+                        <input
+                            type="text"
+                            className="input-base w-full"
+                            placeholder={
+                                variant === "visit"
+                                    ? "방문예약 신청"
+                                    : variant === "custom"
+                                      ? "제출"
+                                      : "상담 신청"
+                            }
+                            value={data.submitLabel ?? ""}
+                            onChange={(e) =>
+                                patchData({ submitLabel: e.target.value })
+                            }
+                        />
+                    </Field>
+                )}
                 <Field label="개인정보 동의 사용">
                     <RadioPill
                         value={data.agreeMode ?? "notuse"}
-                        onChange={(v) => patchData({ agreeMode: v })}
+                        onChange={(v) =>
+                            v === "notuse"
+                                ? patchData({
+                                      agreeMode: v,
+                                      consentTitle: "",
+                                      consentLabel: "",
+                                      agreeAddWords: [],
+                                  })
+                                : patchData({ agreeMode: v })
+                        }
                         options={[
                             { value: "use", label: "사용" },
                             { value: "notuse", label: "미사용" },

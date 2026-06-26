@@ -1,4 +1,5 @@
 import {
+  GalleryImage,
   initialSettings,
   LegacyContentItem,
   Section,
@@ -59,20 +60,27 @@ function contentListToSections(contentList: unknown[]): Section[] {
     const animated = asString(rec.effect) === "on" ? "fade-in" : "none";
 
     if (Array.isArray(rec.imgList) && rec.imgList.length > 0) {
-      rec.imgList.forEach((img, i) => {
-        const url = asString(pickRecord(img).url);
-        if (!url) return;
+      const images: GalleryImage[] = rec.imgList.flatMap((img, i) => {
+        const imgRec = pickRecord(img);
+        const url = asString(imgRec.url);
+        if (!url) return [];
+        const resolved = resolveAsset(url);
+        if (!resolved) return [];
+        return [{ id: `sec-${idx}-img-${i}`, image: resolved, legacy: imgRec }];
+      });
+      if (images.length > 0) {
         out.push({
-          id: `sec-${idx}-img-${i}`,
-          type: "image",
+          id: `sec-${idx}-gallery`,
+          type: "gallery",
           title: "",
-          image: resolveAsset(url),
+          image: null,
+          images,
           content: "",
           effect: "none",
           animation: animated,
-          legacy: { contentListIndex: idx, sourceItem, imgListIndex: i },
+          legacy: { contentListIndex: idx, sourceItem },
         });
-      });
+      }
       return;
     }
 
@@ -94,8 +102,11 @@ function contentListToSections(contentList: unknown[]): Section[] {
           },
         });
       }
-      // 폼 박스 자체 (formSubjectImg 는 폼 내부 상단 이미지로 사용)
+      // 폼 박스 자체 — 양식 제목은 텍스트(formSubject) / 이미지(formSubjectImg) 둘 중 하나.
+      // 이미지가 있으면 이미지 모드로, 없으면 텍스트 모드(default).
       const subjectImg = resolveAsset(asString(rec.formSubjectImg));
+      const subjectText = asString(rec.formSubject);
+      const subjectType: "text" | "image" = subjectImg ? "image" : "text";
       const fixedBottom =
         asString(rec.fixedBottom) === "fixed" ? "fixed" : "nonfixed";
       const buttonTypeRaw = asString(rec.formButtonType);
@@ -114,6 +125,8 @@ function contentListToSections(contentList: unknown[]): Section[] {
         content: "",
         formVariant: "consult",
         formData: {
+          subjectType,
+          title: subjectText || undefined,
           submitLabel: asString(rec.formButtonText) || undefined,
           buttonColor: asString(rec.formButtonColor) || undefined,
           fixedBottom,
@@ -146,19 +159,32 @@ function menuToSubPage(menu: unknown, index: number): SubPage {
   const rec = pickRecord(menu);
   const imgArr = Array.isArray(rec.imgArr) ? rec.imgArr : [];
   const animated = asString(rec.effect) === "on" ? "fade-in" : "none";
+  const images: GalleryImage[] = imgArr.flatMap((u, i) => {
+    const url = asString(u);
+    if (!url) return [];
+    const resolved = resolveAsset(url);
+    if (!resolved) return [];
+    return [{ id: `pg-menu-${index}-img-${i}`, image: resolved }];
+  });
   return {
     id: `pg-menu-${index}`,
     slug: asString(rec.link) || `page-${index + 1}`,
     title: asString(rec.name) || `페이지 ${index + 1}`,
-    sections: imgArr.map((u, i) => ({
-      id: `pg-menu-${index}-img-${i}`,
-      type: "image" as const,
-      title: "",
-      image: resolveAsset(asString(u)),
-      content: "",
-      effect: "none" as const,
-      animation: animated,
-    })),
+    sections:
+      images.length > 0
+        ? [
+            {
+              id: `pg-menu-${index}-gallery`,
+              type: "gallery" as const,
+              title: "",
+              image: null,
+              images,
+              content: "",
+              effect: "none" as const,
+              animation: animated,
+            },
+          ]
+        : [],
     legacy: { sourceMenu: rec, menuIndex: index },
   };
 }
@@ -265,10 +291,12 @@ function landToSettings(land: Land): Settings {
   return {
     ...initialSettings,
     domain: asString(land.ld_domain, initialSettings.domain),
-    headerStyle:
-      asString(land.ld_Interaction).toLowerCase() === "interaction"
-        ? "interaction"
-        : "fix",
+    headerStyle: (() => {
+      const v = asString(land.ld_Interaction).toLowerCase();
+      if (v === "interaction") return "interaction";
+      if (v === "nonfix") return "nonfix";
+      return "fix";
+    })(),
     font: (asString(land.ld_font) || initialSettings.font) as Settings["font"],
     siteDescription: asString(land.ld_description),
     additionalScript: asString(land.ld_add_scripts),
@@ -285,6 +313,7 @@ function landToSettings(land: Land): Settings {
         header.top_phone_width,
         initialSettings.header.phoneSize,
       ),
+      phoneNumber: asString(header.phone_num),
       color: normalizeColor(
         asString(header.header_color),
         initialSettings.header.color,
@@ -332,6 +361,9 @@ function landToSettings(land: Land): Settings {
       buttonText: asString(land.ld_btn_message),
       businessCardImage: resolveAsset(asString(land.ld_card_image)),
       fixedImage: resolveAsset(asString(land.ld_invite_image)),
+      fixedImageLink: asString(land.ld_invite_image_link),
+      fixedImageLinkType:
+        asString(land.ld_invite_image_link_type) === "form" ? "form" : "url",
     },
     bottomFixed: {
       ...initialSettings.bottomFixed,
@@ -461,9 +493,12 @@ export async function getSettings(domain: string): Promise<Settings> {
   return landToSettings(land);
 }
 
-// resolveAsset의 역연산 — DB에는 ASSET_BASE 떼고 상대 경로만 저장
+// resolveAsset의 역연산 — DB에는 ASSET_BASE 떼고 상대 경로만 저장.
+// 이미지 업로드 미구현 상태이므로 새로 선택된 파일의 blob:/data: URL 은
+// 저장 시 빈 값으로 떨궈서 DB 에 들어가지 않게 함 (기존 저장된 URL 은 그대로 유지).
 function stripAssetBase(url: string | null | undefined): string {
   if (!url) return "";
+  if (url.startsWith("blob:") || url.startsWith("data:")) return "";
   if (!ASSET_BASE) return url;
   return url.startsWith(ASSET_BASE + "/")
     ? url.slice(ASSET_BASE.length + 1)
@@ -501,16 +536,24 @@ function settingsToHeaderJson(s: Settings): string {
     header_color: s.header.color,
     phone_img: stripAssetBase(s.header.phoneImage),
     top_phone_width: s.header.phoneSize,
+    phone_num: s.header.phoneNumber,
   });
 }
 
-// subPage 의 image 섹션들에서 url 배열을 뽑는다. legacy.imgListIndex 가 있으면 그 위치에 둠
+// subPage 의 image / gallery 섹션들에서 url 배열을 뽑는다. legacy.imgListIndex 가 있으면 그 위치에 둠
 // (사용자가 순서 안 바꿨으면 원본 순서 유지). 없으면 그냥 순차 append.
 function subPageToImgArr(subPage: SubPage | undefined): string[] {
   if (!subPage) return [];
   const slots: (string | undefined)[] = [];
   const tail: string[] = [];
   subPage.sections.forEach((sec) => {
+    if (sec.type === "gallery") {
+      (sec.images ?? []).forEach((g) => {
+        const url = stripAssetBase(g.image);
+        if (url) tail.push(url);
+      });
+      return;
+    }
     if (sec.type !== "image" || !sec.image) return;
     const url = stripAssetBase(sec.image);
     const i = sec.legacy?.imgListIndex;
@@ -562,10 +605,19 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
     } else {
       delete next.formInviteImg;
     }
-    if (formSec.image) {
+
+    // 양식 제목: subjectType 에 따라 formSubjectImg(이미지) / formSubject(텍스트) 중 하나만 저장.
+    // 반대 모드의 키는 삭제해서 라이브 사이트가 잘못된 값을 읽지 않도록 함.
+    const subjectType = fd.subjectType ?? "text";
+    if (subjectType === "image" && formSec.image) {
       next.formSubjectImg = stripAssetBase(formSec.image);
+      delete next.formSubject;
+    } else if (subjectType === "text" && fd.title) {
+      next.formSubject = fd.title;
+      delete next.formSubjectImg;
     } else {
       delete next.formSubjectImg;
+      delete next.formSubject;
     }
 
     if (fd.submitLabel) next.formButtonText = fd.submitLabel;
@@ -590,6 +642,23 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
       next.formList = [{ type: "name" }, { type: "phone" }];
     if (!next.formInviteType) next.formInviteType = "image";
     return next;
+  }
+
+  // 갤러리(여러 이미지) 섹션: 한 contentList 항목의 imgList 로 매핑.
+  // 항목별 legacy(원본 imgList 키들) 가 있으면 spread 해서 url 외 부가 필드 보존.
+  const gallerySec = group.find((s) => s.type === "gallery");
+  if (gallerySec) {
+    const items = gallerySec.images ?? [];
+    return {
+      ...source,
+      imgList: items.map((g) => ({
+        ...(g.legacy ?? {}),
+        url: stripAssetBase(g.image),
+      })),
+      align: "center",
+      effect:
+        gallerySec.animation && gallerySec.animation !== "none" ? "on" : "off",
+    };
   }
 
   // 이미지만 있는 그룹: 원본 imgList 위치에 새 url 끼워넣음
@@ -676,10 +745,11 @@ export function settingsToLand(s: Settings): LandPatch {
     ld_description: s.siteDescription,
     ld_add_scripts: s.additionalScript,
     ld_db_input_subject: s.info.dbTitle,
-    ld_invite_message: s.info.inviteText,
-    ld_invite_bool: s.info.inviteVisible,
-    ld_reserve_msg_bool: s.info.belowInviteVisible,
-    ld_btn_message: s.info.buttonText,
+    // 초대 문구 · 버튼 영역은 더 이상 사용하지 않음 — 저장 시 빈 값으로 덮어써 라이브 사이트에서도 안 보이게 함.
+    ld_invite_message: "",
+    ld_invite_bool: "off",
+    ld_reserve_msg_bool: "off",
+    ld_btn_message: "",
     ld_card_image: stripAssetBase(s.info.businessCardImage),
     ld_popup_img: stripAssetBase(s.popupImage),
     ld_logo: stripAssetBase(s.header.logoImage),
@@ -706,6 +776,8 @@ export function settingsToLand(s: Settings): LandPatch {
     ld_invite_image: stripAssetBase(
       s.info.fixedImage ?? s.legacy?.fixedImage,
     ),
+    ld_invite_image_link: s.info.fixedImageLink,
+    ld_invite_image_link_type: s.info.fixedImageLinkType,
     // sms.content 도 정식 슬롯. 빈 값이면 legacy 폴백.
     ld_sms_content: s.quickConnect.sms.content || s.legacy?.smsContent || "",
     // location.address 도 user-editable. 새 값 없으면 legacy 폴백.
@@ -733,6 +805,68 @@ export function settingsToLand(s: Settings): LandPatch {
     ld_json_location: JSON.stringify(s.location),
     ld_json_header_menus: JSON.stringify(s.header.menus),
   };
+}
+
+// 상태에 저장된 풀 URL → GCS 객체 경로 (예: "cheonanblooming/abc.jpg") 로 변환.
+// ASSET_BASE 와 일치 안 하거나 blob:/data: 면 null (삭제 대상 아님).
+export function urlToGcsPath(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("blob:") || url.startsWith("data:")) return null;
+  if (!ASSET_BASE) return null;
+  if (!url.startsWith(ASSET_BASE + "/")) return null;
+  return url.slice(ASSET_BASE.length + 1);
+}
+
+// GCS 에서 이미지(객체) 삭제. cleanup 엔드포인트 호출.
+// paths: "도메인/파일명.확장자" 형식의 객체 경로들.
+export async function deleteImages(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const res = await fetch("/api/upload/cleanup", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ paths }),
+  });
+  if (!res.ok) {
+    const body = await readBody(res);
+    throw new Error(asError(body));
+  }
+}
+
+// 페이지 언로드 시 (F5/탭 닫기 등) 동기적으로 orphan 정리를 요청.
+// navigator.sendBeacon 은 text/plain 으로 보내야 하며, 백엔드가 그걸 파싱.
+export function cleanupImagesBeacon(paths: string[]): void {
+  if (paths.length === 0 || typeof navigator === "undefined") return;
+  try {
+    const blob = new Blob([JSON.stringify({ paths })], {
+      type: "text/plain",
+    });
+    navigator.sendBeacon("/api/upload/cleanup", blob);
+  } catch {
+    // ignore — beacon 은 best-effort
+  }
+}
+
+// 이미지를 GCS 에 즉시 업로드. 파일 한 개 또는 여러 개 한 번에 가능.
+// 응답은 풀 URL (ASSET_BASE 가 앞에 붙은 형태) — 상태에 그대로 저장하면 됨.
+export async function uploadImages(
+  domain: string,
+  files: File[],
+): Promise<string[]> {
+  if (files.length === 0) return [];
+  if (!domain) throw new Error("도메인 정보가 없어 업로드할 수 없습니다.");
+  const fd = new FormData();
+  for (const f of files) fd.append("file", f);
+  const res = await fetch(
+    `/api/upload?domain=${encodeURIComponent(domain)}`,
+    { method: "POST", body: fd },
+  );
+  if (!res.ok) {
+    const body = await readBody(res);
+    throw new Error(asError(body));
+  }
+  const data = (await res.json()) as { files?: { url: string }[] };
+  const urls = (data.files ?? []).map((f) => f.url);
+  return urls.map((u) => resolveAsset(u) ?? u);
 }
 
 export async function putSettings(

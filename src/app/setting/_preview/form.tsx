@@ -33,11 +33,13 @@ export function FormBlock({
     pc,
     data,
     privacyText,
+    subjectImage,
 }: {
     variant: "consult" | "visit" | "custom";
     pc: boolean;
     data: FormSectionData;
     privacyText: string;
+    subjectImage?: string | null;
 }) {
     const [name, setName] = useState("");
     const [phone, setPhone] = useState("");
@@ -71,14 +73,28 @@ export function FormBlock({
             style={{ background: bgColor, color: fg, fontFamily }}
         >
             <div
-                className="max-w-xl mx-auto rounded-xl border border-slate-200 p-5 shadow-sm"
+                className="max-w-xl mx-auto rounded-xl border border-slate-200 p-5 shadow-sm overflow-hidden"
                 style={{ background: cardBg }}
             >
-                <div className="text-center mb-4">
-                    <div className="inline-block px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
-                        {title}
+                {(data.subjectType ?? "text") === "image" ? (
+                    subjectImage ? (
+                        // 카드 p-5(20px) 에서 10px 만큼만 negative margin → 이미지 주변 10px 여백 확보
+                        <div className="-mx-2.5 -mt-2.5 mb-4">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={subjectImage}
+                                alt=""
+                                className="w-full block rounded"
+                            />
+                        </div>
+                    ) : null
+                ) : (
+                    <div className="text-center mb-4">
+                        <div className="inline-block px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
+                            {title}
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="space-y-4">
                     {variant === "custom" ? (
@@ -171,23 +187,25 @@ export function FormBlock({
                         </>
                     )}
 
-                    <div>
-                        <div className={labelCls}>
-                            {data.consentTitle || "개인정보 수집 및 이용 동의"}
+                    {(data.agreeMode ?? "notuse") === "use" ? (
+                        <div>
+                            <div className={labelCls}>
+                                {data.consentTitle || "개인정보 수집 및 이용 동의"}
+                            </div>
+                            <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 text-[11px] text-slate-600 whitespace-pre-wrap max-h-32 overflow-y-auto leading-relaxed">
+                                {privacyText || DEFAULT_PRIVACY_TEXT}
+                            </div>
+                            <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={agreed}
+                                    onChange={(e) => setAgreed(e.target.checked)}
+                                    className="w-4 h-4 accent-blue-600"
+                                />
+                                {data.consentLabel || "개인정보 수집 이용에 동의합니다."}
+                            </label>
                         </div>
-                        <div className="border border-slate-200 rounded-lg p-3 bg-slate-50 text-[11px] text-slate-600 whitespace-pre-wrap max-h-32 overflow-y-auto leading-relaxed">
-                            {privacyText || DEFAULT_PRIVACY_TEXT}
-                        </div>
-                        <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm">
-                            <input
-                                type="checkbox"
-                                checked={agreed}
-                                onChange={(e) => setAgreed(e.target.checked)}
-                                className="w-4 h-4 accent-blue-600"
-                            />
-                            {data.consentLabel || "개인정보 수집 이용에 동의합니다."}
-                        </label>
-                    </div>
+                    ) : null}
 
                     {data.buttonType === "image" && data.buttonImage ? (
                         <button

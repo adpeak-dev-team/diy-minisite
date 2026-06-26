@@ -2,7 +2,6 @@
 
 import { Section, Settings } from "../types";
 import { BasicTab } from "./tabs/basic-tab";
-import { ContactTab } from "./tabs/contact-tab";
 import { LegalTab } from "./tabs/legal-tab";
 import { LocationTab } from "./tabs/location-tab";
 import { MarketingTab } from "./tabs/marketing-tab";
@@ -14,15 +13,13 @@ export type TabKey =
     | "basic"
     | "structure"
     | "marketing"
-    | "contact"
     | "location"
     | "legal";
 
 export const TABS: { key: TabKey; label: string; hint: string }[] = [
-    { key: "basic", label: "기본", hint: "사이트 기본 정보 · 헤더 · 푸터" },
+    { key: "basic", label: "기본", hint: "사이트 기본 정보 · 헤더 · 푸터 · 하단 고정 · 연결" },
     { key: "structure", label: "페이지 구성", hint: "본문 컨텐츠 · 서브페이지 · 하부 메뉴" },
     { key: "marketing", label: "전환 · 마케팅", hint: "CTA · 팝업 · 카운트다운" },
-    { key: "contact", label: "연락 · 연결", hint: "하단 고정 · 빠른 연결 · 명함" },
     { key: "location", label: "위치", hint: "주소 · 지도" },
     { key: "legal", label: "약관 · 메시지", hint: "개인정보 · 완료 메시지" },
 ];
@@ -158,7 +155,6 @@ export function EditorPanel({
                     />
                 )}
                 {activeTab === "marketing" && <MarketingTab />}
-                {activeTab === "contact" && <ContactTab />}
                 {activeTab === "location" && <LocationTab />}
                 {activeTab === "legal" && <LegalTab />}
             </div>
