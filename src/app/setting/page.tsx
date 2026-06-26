@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import {
     EditorPanel,
     EditorTabs,
@@ -44,7 +44,11 @@ export default function SettingPage() {
         <ToastProvider>
             <ModalProvider>
                 <ImageLifecycleProvider>
-                    <SettingPageInner />
+                    {/* useSearchParams() 가 prod build prerender 에서 CSR bailout 되려면
+                        Suspense 안에 있어야 함 (Next.js 16) */}
+                    <Suspense fallback={null}>
+                        <SettingPageInner />
+                    </Suspense>
                 </ImageLifecycleProvider>
             </ModalProvider>
         </ToastProvider>
