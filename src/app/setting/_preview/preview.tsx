@@ -316,6 +316,98 @@ function SlidingHeaderOverlay({
     );
 }
 
+// 실제 라이브 사이트 — 폰 프레임 없이 화면 전체를 채우는 모바일 프리뷰.
+// (app)/page.tsx 와 (app)/[slug]/page.tsx 가 이 컴포넌트를 사용.
+// MobilePreview 와 본문 구성은 동일하지만:
+// - 폰 프레임 (검은 테두리/노치) 제거
+// - viewport 전체를 차지 (h-dvh)
+// - onNavigate 미전달 → PreviewHeader 의 메뉴 클릭이 실제 a href 동작 (Next 라우팅)
+export function LiveSite({
+    s,
+    currentPageId,
+}: {
+    s: Settings;
+    currentPageId: string | null;
+}) {
+    const sections = resolveSections(s, currentPageId);
+    const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
+    const headerPx = parsePxOr(s.header.padding, 12);
+    const bottomOffset = s.enabled.bottomFixed
+        ? parsePxOr(s.bottomFixed.height, 64)
+        : 0;
+    const orderedSections = expandFixedForms(sections);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const isInteraction =
+        s.enabled.header && s.headerStyle === "interaction";
+
+    return (
+        <div
+            className="relative h-dvh overflow-hidden bg-white flex flex-col"
+            style={{ fontFamily }}
+        >
+            <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto"
+                style={{ paddingBottom: bottomOffset }}
+            >
+                {s.enabled.header ? (
+                    <PreviewHeader s={s} px={headerPx} />
+                ) : null}
+                {s.enabled.countdown && s.countdown.position === "top" ? (
+                    <CountdownBanner s={s} />
+                ) : null}
+                <PageBody
+                    sections={orderedSections}
+                    enabled={s.enabled.sections}
+                    privacyText={s.privacyPolicy}
+                />
+                {s.enabled.location &&
+                (s.location.embedUrl || s.location.address) ? (
+                    <LocationMap location={s.location} />
+                ) : null}
+                <FooterBlock footer={s.footer} />
+                {s.enabled.countdown && s.countdown.position === "bottom" ? (
+                    <CountdownBanner s={s} />
+                ) : null}
+            </div>
+
+            {isInteraction ? (
+                <SlidingHeaderOverlay scrollContainerRef={scrollRef}>
+                    <PreviewHeader s={s} px={headerPx} />
+                    {s.enabled.countdown &&
+                    s.countdown.position === "top" &&
+                    s.countdown.sticky ? (
+                        <CountdownBanner s={s} />
+                    ) : null}
+                </SlidingHeaderOverlay>
+            ) : null}
+            {s.enabled.bottomFixed ? <BottomFixedBar s={s} /> : null}
+            {s.enabled.countdown && s.countdown.position === "floating" ? (
+                <CountdownFloating s={s} />
+            ) : null}
+            {s.enabled.quickConnect ? (
+                <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+            ) : null}
+            {s.enabled.fixedImage && s.info.fixedImage ? (
+                <FixedImageFloating
+                    src={s.info.fixedImage}
+                    bottomOffset={
+                        bottomOffset +
+                        (quickConnectStackHeight(s) > 0
+                            ? quickConnectStackHeight(s) + 10
+                            : 0)
+                    }
+                    link={s.info.fixedImageLink}
+                    linkType={s.info.fixedImageLinkType}
+                />
+            ) : null}
+            {s.enabled.popup && s.popupImage ? (
+                <PopupOverlay image={s.popupImage} domain={s.domain} />
+            ) : null}
+        </div>
+    );
+}
+
 // QuickConnect 스택의 세로 픽셀 높이 — FixedImage 를 그 위로 올리려고 계산.
 // (overlays.tsx 의 버튼 크기 w-15/h-15 = 60px, gap-2.5 = 10px 와 동기화)
 function quickConnectStackHeight(s: Settings): number {

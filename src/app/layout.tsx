@@ -39,13 +39,14 @@ export default function RootLayout({
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gaegu&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Jua&family=Nanum+Gothic:wght@400;700;800&family=Nanum+Myeongjo:wght@400;700;800&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap"
         />
+        {/* webfontworld 레포는 사라져서 fonts-archive 미러로 교체. font-family 이름은 동일 */}
         <link
           rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/webfontworld/Paperlogy/Paperlogy.css"
+          href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css"
         />
         <link
           rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/webfontworld/score/SCoreDream.css"
+          href="https://cdn.jsdelivr.net/gh/fonts-archive/S-CoreDream/S-CoreDream.css"
         />
       </head>
       <body className="min-h-full flex flex-col">

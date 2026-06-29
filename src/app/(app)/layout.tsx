@@ -5,7 +5,7 @@ export default function MainLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <div>
+        <div className="max-w-230 mx-auto">
             {children}
         </div>
     );

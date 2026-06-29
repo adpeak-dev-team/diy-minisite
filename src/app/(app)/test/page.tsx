@@ -43,7 +43,7 @@ export default function TestPage() {
         Backend Connection Test
       </h1>
       <p className="text-sm text-zinc-500">
-        GET /api/test → http://localhost:4000/api/test
+        GET /api/test → http://localhost:5050/api/test
       </p>
 
       <pre className="w-full max-w-3xl overflow-auto rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">

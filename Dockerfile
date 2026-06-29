@@ -30,7 +30,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3030
+ENV PORT=5030
 ENV HOSTNAME=0.0.0.0
 
 # non-root 유저로 실행
@@ -42,5 +42,5 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 
-EXPOSE 3030
+EXPOSE 5030
 CMD ["node", "server.js"]

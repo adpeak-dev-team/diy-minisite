@@ -292,7 +292,7 @@ export const FONT_OPTIONS: { key: FontKey; label: string; family: string }[] = [
     { key: "nanum-gothic", label: "나눔 고딕", family: "'Nanum Gothic', sans-serif" },
     { key: "ibm-plex-kr", label: "IBM Plex Sans KR", family: "'IBM Plex Sans KR', sans-serif" },
     { key: "black-han-sans", label: "검은고딕", family: "'Black Han Sans', sans-serif" },
-    { key: "paperozi", label: "페이퍼로지", family: "'Paperlogy', serif" },
+    { key: "paperozi", label: "페이퍼로지", family: "'Paperlogy', sans-serif" },
     { key: "noto-serif-kr", label: "노토 세리프", family: "'Noto Serif KR', serif" },
     { key: "nanum-myeongjo", label: "나눔 명조", family: "'Nanum Myeongjo', serif" },
     { key: "gowun-batang", label: "고운 바탕", family: "'Gowun Batang', serif" },

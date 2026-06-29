@@ -1,15 +1,22 @@
 "use client";
 
+import { useParams } from "next/navigation";
+import { useMemo } from "react";
 import { LiveSite } from "@/app/setting/_preview/preview";
 import { useDomainFromHost } from "@/lib/use-domain";
 import { useSettings } from "@/service/setting";
 
-export default function HomePage() {
+export default function SubPageRoute() {
+    const params = useParams<{ slug: string }>();
+    const slug = params?.slug ?? "";
     const domain = useDomainFromHost();
     const q = useSettings(domain);
 
-    // proxy.ts 가 베어 호스트는 이미 막고 있어서 정상 흐름엔 domain 이 있음.
-    // mount 직후 1프레임은 null — 그동안은 빈 화면 (깜빡임 방지).
+    const currentPageId = useMemo(() => {
+        if (!q.data || !slug) return null;
+        return q.data.subPages.find((p) => p.slug === slug)?.id ?? null;
+    }, [q.data, slug]);
+
     if (!domain) return null;
     if (q.isPending) return <CenteredMessage>불러오는 중…</CenteredMessage>;
     if (q.isError || !q.data) {
@@ -22,8 +29,18 @@ export default function HomePage() {
             </CenteredMessage>
         );
     }
+    if (!currentPageId) {
+        return (
+            <CenteredMessage>
+                <strong>페이지를 찾을 수 없습니다</strong>
+                <span className="block text-sm text-slate-500 mt-1">
+                    /{slug}
+                </span>
+            </CenteredMessage>
+        );
+    }
 
-    return <LiveSite s={q.data} currentPageId={null} />;
+    return <LiveSite s={q.data} currentPageId={currentPageId} />;
 }
 
 function CenteredMessage({ children }: { children: React.ReactNode }) {

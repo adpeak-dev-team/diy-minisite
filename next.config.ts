@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   async rewrites() {
     const backendUrl = process.env.NODE_ENV === "production"
-      ? "http://backend:4000"
+      ? "http://backend:5050"
       : process.env.NEXT_PUBLIC_BACK_API;
     return [
       {

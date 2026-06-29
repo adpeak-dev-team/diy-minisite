@@ -51,17 +51,29 @@ export function PreviewHeader({
                 {s.info.siteName || "LOGO"}
             </div>
         );
-        // 로고 클릭 → 미리보기 메인 페이지로. onNavigate 없으면 비-인터랙티브.
-        if (!onNavigate) return inner;
+        // 로고 클릭 동작:
+        // - 에디터(onNavigate 있음) → 미리보기 내부에서 메인 페이지(currentPageId=null) 로 전환
+        // - 라이브(onNavigate 없음) → 실제 라우팅으로 '/' 이동
+        if (onNavigate) {
+            return (
+                <button
+                    type="button"
+                    onClick={() => onNavigate(null)}
+                    aria-label="메인으로"
+                    className="contents cursor-pointer"
+                >
+                    {inner}
+                </button>
+            );
+        }
         return (
-            <button
-                type="button"
-                onClick={() => onNavigate(null)}
+            <a
+                href="/"
                 aria-label="메인으로"
                 className="contents cursor-pointer"
             >
                 {inner}
-            </button>
+            </a>
         );
     };
 
