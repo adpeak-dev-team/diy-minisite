@@ -549,6 +549,10 @@ function transformSubPagesUrls(
   return subPages.map((p) => ({
     ...p,
     sections: p.sections.map((sec) => transformSectionUrls(sec, tx)),
+    // children 은 손자 없이 1단만 존재하지만 코드 단순성을 위해 동일 함수로 재귀.
+    children: p.children
+      ? transformSubPagesUrls(p.children, tx)
+      : undefined,
   }));
 }
 
@@ -623,11 +627,23 @@ function settingsToMenusJson(s: Settings): string {
     menus: s.header.menus.map((item) => {
       const subPage = s.subPages.find((p) => p.slug === item.link);
       const sourceMenu = subPage?.legacy?.sourceMenu ?? {};
+      // 하부메뉴 (children) 는 라이브 사이트가 아직 렌더 로직이 없어도 무시하므로
+      // 함께 실어두면 향후 확장 시 별도 마이그 없이 노출 가능. 각 자식은
+      // 자체 imgArr 도 포함 → 갤러리형 자식이면 이미지 리스트 그대로 렌더 가능.
+      // childrenEnabled=false 면 라이브 사이트가 자식 존재를 인지하지 않도록 생략.
+      const children = subPage?.childrenEnabled
+        ? (subPage.children ?? []).map((c) => ({
+            name: c.title || c.slug,
+            link: c.slug,
+            imgArr: subPageToImgArr(c),
+          }))
+        : [];
       return {
         ...sourceMenu,
         name: item.name,
         link: item.link,
         imgArr: subPageToImgArr(subPage),
+        ...(children.length > 0 ? { children } : {}),
       };
     }),
   });

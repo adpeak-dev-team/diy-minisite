@@ -1,7 +1,7 @@
 "use client";
 
 import { RefObject, useEffect, useRef, useState } from "react";
-import { Section, Settings } from "../types";
+import { findSubPage, Section, Settings, SubPage } from "../types";
 import { fontFamilyOf, parsePxOr } from "../lib";
 import { CountdownBanner, CountdownFloating } from "./countdown";
 import {
@@ -33,15 +33,29 @@ export function Preview({
 }) {
     const sections = resolveSections(s, currentPageId);
     return mode === "pc" ? (
-        <PCPreview s={s} sections={sections} onNavigate={onNavigate} />
+        <PCPreview
+            s={s}
+            sections={sections}
+            currentPageId={currentPageId}
+            onNavigate={onNavigate}
+        />
     ) : (
-        <MobilePreview s={s} sections={sections} onNavigate={onNavigate} />
+        <MobilePreview
+            s={s}
+            sections={sections}
+            currentPageId={currentPageId}
+            onNavigate={onNavigate}
+        />
     );
 }
 
 function resolveSections(s: Settings, currentPageId: string | null): Section[] {
     if (!currentPageId) return s.sections;
-    const sub = s.subPages.find((p) => p.id === currentPageId);
+    let sub = findSubPage(s.subPages, currentPageId)?.page;
+    // 부모(childrenEnabled=true) 는 컨테이너 — 자체 sections 렌더 안 하고 첫 자식으로.
+    if (sub?.childrenEnabled && sub.children && sub.children.length > 0) {
+        sub = sub.children[0];
+    }
     const subSections = sub?.sections ?? [];
     // 메인 페이지에 fixedBottom === "fixed" 인 폼이 있으면 서브페이지 하단에도 노출.
     // (id 충돌 방지를 위해 새 id 부여)
@@ -57,10 +71,12 @@ function resolveSections(s: Settings, currentPageId: string | null): Section[] {
 function PCPreview({
     s,
     sections,
+    currentPageId,
     onNavigate,
 }: {
     s: Settings;
     sections: Section[];
+    currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
 }) {
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
@@ -97,6 +113,11 @@ function PCPreview({
                     {s.enabled.countdown && s.countdown.position === "top" ? (
                         <CountdownBanner s={s} pc />
                     ) : null}
+                    <ChildPagesNav
+                        s={s}
+                        currentPageId={currentPageId}
+                        onNavigate={onNavigate}
+                    />
                     <PageBody sections={orderedSections} enabled={s.enabled.sections} pc privacyText={s.privacyPolicy} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
                         <LocationMap location={s.location} pc />
@@ -152,10 +173,12 @@ function PCPreview({
 function MobilePreview({
     s,
     sections,
+    currentPageId,
     onNavigate,
 }: {
     s: Settings;
     sections: Section[];
+    currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
 }) {
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
@@ -189,6 +212,11 @@ function MobilePreview({
                     {s.enabled.countdown && s.countdown.position === "top" ? (
                         <CountdownBanner s={s} />
                     ) : null}
+                    <ChildPagesNav
+                        s={s}
+                        currentPageId={currentPageId}
+                        onNavigate={onNavigate}
+                    />
                     <PageBody sections={orderedSections} enabled={s.enabled.sections} privacyText={s.privacyPolicy} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
                         <LocationMap location={s.location} />
@@ -356,6 +384,7 @@ export function LiveSite({
                 {s.enabled.countdown && s.countdown.position === "top" ? (
                     <CountdownBanner s={s} />
                 ) : null}
+                <ChildPagesNav s={s} currentPageId={currentPageId} />
                 <PageBody
                     sections={orderedSections}
                     enabled={s.enabled.sections}
@@ -417,6 +446,92 @@ function quickConnectStackHeight(s: Settings): number {
     if (s.quickConnect.sms.enabled && s.quickConnect.sms.phone) n++;
     if (n === 0) return 0;
     return n * 60 + (n - 1) * 10;
+}
+
+// 부모 서브페이지의 children 을 그리드로 노출해 자식 페이지로 이동시키는 네비.
+// 노출 조건:
+//   - 현재 페이지가 자식 → 부모의 children 을 렌더 (현재 자식 하이라이트)
+//   - 현재 페이지가 자식을 가진 부모 → 자기 children 을 렌더
+//   - 그 외 (메인 / 자식 없는 서브페이지) → 렌더 안 함
+// 위치: 헤더 (그리고 top countdown) 바로 아래 in-flow. 상단 sticky 헤더가 있어도
+// 자연스럽게 스크롤됨. onNavigate 가 있으면 편집기 프리뷰 (버튼) / 없으면 라이브 링크.
+function ChildPagesNav({
+    s,
+    currentPageId,
+    onNavigate,
+}: {
+    s: Settings;
+    currentPageId: string | null;
+    onNavigate?: (pageId: string | null) => void;
+}) {
+    // 사이트 전역 토글이 꺼져 있으면 아예 렌더 안 함.
+    if (!s.enabled.childNavGrid) return null;
+    // 현재 페이지 기준으로 그리드에 노출할 부모 SubPage 를 찾는다.
+    let parent: SubPage | null = null;
+    let activeChildId: string | null = null;
+    if (currentPageId) {
+        const found = findSubPage(s.subPages, currentPageId);
+        if (found?.parent) {
+            parent = found.parent;
+            activeChildId = found.page.id;
+        } else if (found?.page.children?.length) {
+            parent = found.page;
+        }
+    }
+    // 부모의 하부메뉴가 꺼져 있으면(=단순 서브페이지) 그리드 노출 안 함.
+    if (!parent || !parent.childrenEnabled || !parent.children?.length)
+        return null;
+
+    const children = parent.children;
+    const cols = Math.min(children.length, 4);
+    const gridColsClass =
+        cols <= 1
+            ? "grid-cols-1"
+            : cols === 2
+                ? "grid-cols-2"
+                : cols === 3
+                    ? "grid-cols-3"
+                    : "grid-cols-2 sm:grid-cols-4";
+
+    return (
+        <nav
+            aria-label={`${parent.title || parent.slug} 하부메뉴`}
+            className="w-full bg-white border-b border-slate-200"
+        >
+            <div className={`grid ${gridColsClass} gap-1 p-2`}>
+                {children.map((c) => {
+                    const isActive = activeChildId === c.id;
+                    const label = c.title || c.slug;
+                    const cls = `text-center text-xs sm:text-sm px-2 py-2 rounded-md transition ${
+                        isActive
+                            ? "bg-slate-900 text-white shadow"
+                            : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200"
+                    }`;
+                    if (onNavigate) {
+                        return (
+                            <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => onNavigate(c.id)}
+                                className={cls}
+                            >
+                                {label}
+                            </button>
+                        );
+                    }
+                    return (
+                        <a
+                            key={c.id}
+                            href={`/${parent!.slug}/${c.slug}`}
+                            className={cls}
+                        >
+                            {label}
+                        </a>
+                    );
+                })}
+            </div>
+        </nav>
+    );
 }
 
 // fixedBottom === "fixed" 인 form 섹션의 노출 규칙:

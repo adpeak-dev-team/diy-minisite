@@ -1,7 +1,7 @@
 "use client";
 
 import { MouseEvent } from "react";
-import { MenuItem, Settings } from "../types";
+import { MenuItem, Settings, SubPage } from "../types";
 import { clampPct, fontFamilyOf, menuHref, parsePxOr } from "../lib";
 import { isLightColor } from "../color";
 
@@ -100,15 +100,51 @@ export function PreviewHeader({
     const showMenus = s.header.menuEnabled && s.header.menus.length > 0;
 
     // 메뉴 클릭 시 실제 브라우저 이동 대신 미리보기 내부에서 페이지 전환.
-    // - linkType === "subpage": 슬러그로 subPage 찾아 그 id 로 전환, 없으면 메인(null)
+    // - linkType === "subpage": 슬러그로 subPage 찾음.
+    //   부모(childrenEnabled=true) 면 그 페이지 자체엔 컨텐츠가 없으니 첫 자식으로 이동.
     // - 외부 URL: 기본 동작 유지 (preventDefault 안 함 → 새 탭/이동)
+    const resolveMenuTarget = (m: MenuItem): SubPage | null => {
+        if (m.linkType !== "subpage") return null;
+        const slug = m.link.replace(/^\/+/, "");
+        const target = s.subPages.find((p) => p.slug === slug);
+        if (!target) return null;
+        if (
+            target.childrenEnabled &&
+            target.children &&
+            target.children.length > 0
+        ) {
+            return target.children[0];
+        }
+        return target;
+    };
     const handleMenuClick = (m: MenuItem) => (e: MouseEvent<HTMLAnchorElement>) => {
         if (!onNavigate || m.linkType !== "subpage") return;
         e.preventDefault();
-        const slug = m.link.replace(/^\/+/, "");
-        const target = s.subPages.find((p) => p.slug === slug);
+        const target = resolveMenuTarget(m);
         onNavigate(target?.id ?? null);
     };
+    const handleChildClick = (child: SubPage) => (
+        e: MouseEvent<HTMLAnchorElement>,
+    ) => {
+        if (!onNavigate) return;
+        e.preventDefault();
+        onNavigate(child.id);
+    };
+
+    // hover 드롭다운은 사이트 전역 토글(childNavHover) 에 의해서만 활성. 각 메뉴 항목
+    // 별로는 해당 슬러그에 매칭되는 부모 subPage 가 childrenEnabled + children 을 가질 때만.
+    const hoverOn = s.enabled.childNavHover;
+    const menuChildrenOf = (m: MenuItem): SubPage[] | null => {
+        if (!hoverOn || m.linkType !== "subpage") return null;
+        const slug = m.link.replace(/^\/+/, "");
+        const target = s.subPages.find((p) => p.slug === slug);
+        if (!target?.childrenEnabled) return null;
+        const cs = target.children ?? [];
+        return cs.length > 0 ? cs : null;
+    };
+    // 드롭다운 링크 href: 부모 slug/자식 slug 조합. 프리뷰 모드에선 onNavigate 로 대체됨.
+    const childHref = (parentSlug: string, child: SubPage) =>
+        `/${parentSlug}/${child.slug}`;
 
     return (
         <div
@@ -153,7 +189,7 @@ export function PreviewHeader({
             </div>
             {showMenus ? (
                 <div
-                    className={`flex items-center justify-around border-b ${pc ? "text-sm" : "text-xs"}`}
+                    className={`flex items-center justify-around border-b relative ${pc ? "text-sm" : "text-xs"}`}
                     style={{
                         background: s.subMenus.bgColor || bg,
                         color: s.subMenus.textColor || textColor,
@@ -162,17 +198,66 @@ export function PreviewHeader({
                         padding: `${parsePxOr(s.subMenus.padding, pc ? 10 : 8)}px ${pc ? 32 : 16}px`,
                     }}
                 >
-                    {s.header.menus.map((m) => (
-                        <a
-                            key={m.id}
-                            href={menuHref(m)}
-                            onClick={handleMenuClick(m)}
-                            className="hover:opacity-80 transition cursor-pointer"
-                            style={{ color: "inherit" }}
-                        >
-                            {m.name}
-                        </a>
-                    ))}
+                    {s.header.menus.map((m) => {
+                        const childrenList = menuChildrenOf(m);
+                        const parentSlug = m.link.replace(/^\/+/, "");
+                        const hasDropdown =
+                            childrenList !== null && childrenList.length > 0;
+                        return (
+                            <div
+                                key={m.id}
+                                className={`group relative ${
+                                    hasDropdown ? "" : ""
+                                }`}
+                            >
+                                <a
+                                    href={menuHref(m)}
+                                    onClick={handleMenuClick(m)}
+                                    className="hover:opacity-80 transition cursor-pointer inline-flex items-center gap-1"
+                                    style={{ color: "inherit" }}
+                                >
+                                    {m.name}
+                                    {hasDropdown ? (
+                                        <span className="text-[9px] opacity-60">
+                                            ▾
+                                        </span>
+                                    ) : null}
+                                </a>
+                                {hasDropdown ? (
+                                    <div
+                                        // 헤더 메뉴 strip 바로 아래에 절대 위치. 슬라이드 다운:
+                                        //   기본 상태 → translateY(-4px) + opacity 0 + max-h 0
+                                        //   group-hover → translateY(0)  + opacity 1 + max-h 큰 값
+                                        // overflow-hidden + max-h 로 실제로 아래로 펼쳐지는 애니메이션.
+                                        className="absolute left-1/2 -translate-x-1/2 top-full min-w-40 z-30 overflow-hidden max-h-0 opacity-0 -translate-y-1 group-hover:max-h-96 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover:pointer-events-auto"
+                                    >
+                                        <div
+                                            className="mt-1 rounded-md shadow-lg border py-1"
+                                            style={{
+                                                background: light
+                                                    ? "#FFFFFF"
+                                                    : "#0F172A",
+                                                color: textColor,
+                                                borderColor,
+                                            }}
+                                        >
+                                            {childrenList!.map((c) => (
+                                                <a
+                                                    key={c.id}
+                                                    href={childHref(parentSlug, c)}
+                                                    onClick={handleChildClick(c)}
+                                                    className={`block px-3 py-1.5 text-center hover:opacity-80 transition ${pc ? "text-sm" : "text-xs"}`}
+                                                    style={{ color: "inherit" }}
+                                                >
+                                                    {c.title || c.slug}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </div>
+                        );
+                    })}
                 </div>
             ) : null}
         </div>

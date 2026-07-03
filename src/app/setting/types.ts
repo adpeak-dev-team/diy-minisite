@@ -132,6 +132,12 @@ export type SubPage = {
     slug: string;
     title: string;
     sections: Section[];
+    // 하부메뉴 (2단 트리). 최상위 SubPage 만 children 을 가질 수 있고,
+    // 자식 SubPage 는 children 을 가지지 않음 (손자 금지 - 편집 UI에서 강제).
+    children?: SubPage[];
+    // 하부메뉴 활성화. true 면 이 페이지는 컨테이너 역할 — 자체 sections 는 렌더/편집
+    // 안 되고, 접근 시 첫 자식으로 리다이렉트. false 면 기존처럼 자체 sections 사용.
+    childrenEnabled?: boolean;
     legacy?: {
         sourceMenu: Record<string, unknown>;  // ld_json_menus.menus[i] 통째로
         menuIndex: number;
@@ -181,6 +187,9 @@ export type EnabledFlags = {
     countdown: boolean;
     quickConnect: boolean;
     location: boolean;
+    // 하부메뉴 이동 UI 스타일. 두 개 독립 토글 — 둘 다 켜지면 grid 와 hover 둘 다 노출.
+    childNavGrid: boolean;   // 부모 페이지 상단(헤더 아래)에 자식 목록을 grid 로 노출
+    childNavHover: boolean;  // 헤더 메뉴 hover 시 아래로 슬라이드 드롭다운
 };
 
 // 옛 land 컬럼 중 새 Settings UI에는 노출되지 않지만 라운드트립으로
@@ -472,6 +481,8 @@ export const initialSettings: Settings = {
         countdown: false,
         quickConnect: false,
         location: false,
+        childNavGrid: true,
+        childNavHover: false,
     },
 };
 
@@ -479,3 +490,37 @@ export const uid = () =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
         ? crypto.randomUUID()
         : Math.random().toString(36).slice(2);
+
+// 최상위 + children 을 통합해 id 로 검색. 자식 페이지 선택 시에도 정확히 찾음.
+export function findSubPage(
+    subPages: SubPage[],
+    id: string,
+): { page: SubPage; parent: SubPage | null } | null {
+    for (const p of subPages) {
+        if (p.id === id) return { page: p, parent: null };
+        if (p.children) {
+            for (const c of p.children) {
+                if (c.id === id) return { page: c, parent: p };
+            }
+        }
+    }
+    return null;
+}
+
+// 최상위 SubPage 배열을 대상으로 patch. id 가 자식이면 부모의 children 안에서 교체.
+export function patchSubPage(
+    subPages: SubPage[],
+    id: string,
+    patch: (p: SubPage) => SubPage,
+): SubPage[] {
+    return subPages.map((p) => {
+        if (p.id === id) return patch(p);
+        if (p.children?.some((c) => c.id === id)) {
+            return {
+                ...p,
+                children: p.children.map((c) => (c.id === id ? patch(c) : c)),
+            };
+        }
+        return p;
+    });
+}

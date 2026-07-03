@@ -1,6 +1,6 @@
 "use client";
 
-import { Section, Settings } from "../types";
+import { findSubPage, patchSubPage, Section, Settings, SubPage } from "../types";
 import { BasicTab } from "./tabs/basic-tab";
 import { LegalTab } from "./tabs/legal-tab";
 import { LocationTab } from "./tabs/location-tab";
@@ -113,9 +113,9 @@ export function EditorPanel({
             subMenus: { ...prev.subMenus, [key]: value },
         }));
 
-    const currentSubPage = currentPageId
-        ? s.subPages.find((p) => p.id === currentPageId) ?? null
-        : null;
+    const found = currentPageId ? findSubPage(s.subPages, currentPageId) : null;
+    const currentSubPage: SubPage | null = found?.page ?? null;
+    const parentSubPage: SubPage | null = found?.parent ?? null;
     const pageSections: Section[] = currentSubPage
         ? currentSubPage.sections
         : s.sections;
@@ -126,9 +126,10 @@ export function EditorPanel({
         }
         setS((prev) => ({
             ...prev,
-            subPages: prev.subPages.map((p) =>
-                p.id === currentPageId ? { ...p, sections: next } : p,
-            ),
+            subPages: patchSubPage(prev.subPages, currentPageId, (p) => ({
+                ...p,
+                sections: next,
+            })),
         }));
     };
 
@@ -150,6 +151,7 @@ export function EditorPanel({
                         currentPageId={currentPageId}
                         setCurrentPageId={setCurrentPageId}
                         currentSubPage={currentSubPage}
+                        parentSubPage={parentSubPage}
                         pageSections={pageSections}
                         setPageSections={setPageSections}
                     />
@@ -171,6 +173,12 @@ export function PageSelector({
     currentPageId: string | null;
     onSelect: (next: string | null) => void;
 }) {
+    // 현재 선택된 페이지의 부모(자식이 선택된 경우) 또는 그 페이지 자체(부모가 선택된 경우).
+    // 이 부모의 children 이 있으면 2단 pill 을 노출.
+    const found = currentPageId ? findSubPage(subPages, currentPageId) : null;
+    const parentPill = found?.parent ?? found?.page ?? null;
+    const showChildren = !!parentPill?.children?.length;
+
     return (
         <div className="px-4 sm:px-5 py-2 border-b border-slate-200 bg-white">
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
@@ -190,22 +198,62 @@ export function PageSelector({
                     >
                         메인 페이지
                     </button>
-                    {subPages.map((p) => (
-                        <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => onSelect(p.id)}
-                            className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap font-mono transition ${
-                                currentPageId === p.id
-                                    ? "bg-blue-600 text-white shadow"
-                                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                            }`}
-                            title={p.title || `/${p.slug}`}
-                        >
-                            /{p.slug}
-                        </button>
-                    ))}
+                    {subPages.map((p) => {
+                        // 자식이 선택된 경우 부모 pill 을 "선택된 상태" 로 표시하되
+                        // 배경톤을 옅게(파랑300) 해서 실제 활성(파랑600) 자식과 구분.
+                        const isActive = currentPageId === p.id;
+                        const isParentOfActive =
+                            !isActive && found?.parent?.id === p.id;
+                        const hasChildren = !!p.children?.length;
+                        return (
+                            <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => onSelect(p.id)}
+                                className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap font-mono transition ${
+                                    isActive
+                                        ? "bg-blue-600 text-white shadow"
+                                        : isParentOfActive
+                                            ? "bg-blue-300 text-white"
+                                            : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                                }`}
+                                title={p.title || `/${p.slug}`}
+                            >
+                                /{p.slug}
+                                {hasChildren ? (
+                                    <span className="ml-1 text-[9px] opacity-70">
+                                        +{p.children!.length}
+                                    </span>
+                                ) : null}
+                            </button>
+                        );
+                    })}
                 </div>
+                {showChildren && parentPill ? (
+                    <div className="flex items-center gap-1.5 overflow-x-auto mt-2 pt-2 border-t border-blue-100">
+                        <span className="text-[10px] text-blue-600 shrink-0 pl-1">
+                            └ 하부메뉴
+                        </span>
+                        {parentPill.children!.map((c) => {
+                            const isActive = currentPageId === c.id;
+                            return (
+                                <button
+                                    key={c.id}
+                                    type="button"
+                                    onClick={() => onSelect(c.id)}
+                                    className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap font-mono transition ${
+                                        isActive
+                                            ? "bg-blue-600 text-white shadow"
+                                            : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                                    }`}
+                                    title={c.title || `/${parentPill.slug}/${c.slug}`}
+                                >
+                                    /{c.slug}
+                                </button>
+                            );
+                        })}
+                    </div>
+                ) : null}
             </div>
         </div>
     );

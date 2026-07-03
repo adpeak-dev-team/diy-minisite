@@ -14,7 +14,14 @@ export default function SubPageRoute() {
 
     const currentPageId = useMemo(() => {
         if (!q.data || !slug) return null;
-        return q.data.subPages.find((p) => p.slug === slug)?.id ?? null;
+        const p = q.data.subPages.find((p) => p.slug === slug);
+        if (!p) return null;
+        // 부모(하부메뉴 활성) 는 자체 컨텐츠 없음 → 첫 자식으로 렌더.
+        // (URL 리다이렉트가 아니라 currentPageId 만 자식으로 바꿔 sections 를 첫 자식으로.)
+        if (p.childrenEnabled && p.children && p.children.length > 0) {
+            return p.children[0].id;
+        }
+        return p.id;
     }, [q.data, slug]);
 
     if (!domain) return null;
