@@ -16,6 +16,12 @@ import { useImageLifecycle } from "./_editor/image-lifecycle";
 
 export const AutoFocusContext = createContext(false);
 
+// 미리보기에서 특정 영역을 클릭하면 편집기의 해당 아코디언을 열고 강조하기 위한 컨텍스트.
+// anchor 문자열이 AccordionSection 의 anchor 와 일치하면 열림 + 스크롤 + 하이라이트.
+// nonce 는 같은 anchor 를 다시 클릭해도 재트리거되도록 하는 카운터.
+export type EditorFocus = { anchor: string; nonce: number } | null;
+export const EditorFocusContext = createContext<EditorFocus>(null);
+
 // 이미지 업로드 시 GCS 폴더 prefix 로 쓰이는 현재 사이트 도메인.
 // 빈 문자열이면 업로드 불가 (도메인 로드 전 / no-domain 모드).
 export const DomainContext = createContext<string>("");
@@ -52,6 +58,7 @@ export function AccordionSection({
     onToggle,
     defaultOpen = false,
     focusTarget,
+    anchor,
     children,
 }: {
     title: string;
@@ -60,11 +67,14 @@ export function AccordionSection({
     onToggle?: (next: boolean) => void;
     defaultOpen?: boolean;
     focusTarget?: string;
+    anchor?: string;
     children: ReactNode;
 }) {
     const [open, setOpen] = useState(defaultOpen);
     const dimmed = enabled === false;
     const autoFocus = useContext(AutoFocusContext);
+    const focus = useContext(EditorFocusContext);
+    const rowRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!open || !autoFocus || !focusTarget) return;
@@ -74,8 +84,31 @@ export function AccordionSection({
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
     }, [open, autoFocus, focusTarget]);
 
+    // 미리보기에서 이 영역을 클릭한 경우: 아코디언 열고 스크롤 + 잠깐 강조.
+    useEffect(() => {
+        if (!focus || !anchor || focus.anchor !== anchor) return;
+        let clearTimer = 0;
+        // 렌더/탭 전환 직후일 수 있어 다음 틱에 실행 (동기 setState 회피).
+        const openTimer = window.setTimeout(() => {
+            setOpen(true);
+            const el = rowRef.current;
+            if (!el) return;
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.style.outline = "2px solid #2563eb";
+            el.style.outlineOffset = "2px";
+            clearTimer = window.setTimeout(() => {
+                el.style.outline = "";
+                el.style.outlineOffset = "";
+            }, 1600);
+        }, 0);
+        return () => {
+            window.clearTimeout(openTimer);
+            window.clearTimeout(clearTimer);
+        };
+    }, [focus, anchor]);
+
     return (
-        <div className="accordion-row">
+        <div ref={rowRef} className="accordion-row">
             <div
                 className="accordion-head"
                 onClick={() => setOpen((o) => !o)}

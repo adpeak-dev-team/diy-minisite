@@ -13,6 +13,12 @@ export function proxy(request: NextRequest) {
     const host = (request.headers.get("host") ?? "").toLowerCase();
     const hostname = host.split(":")[0];
 
+    // 개발 환경에서는 서브도메인 없는 베어 로컬호스트 접근도 허용.
+    // (UI 작업 시 test.localhost DNS 해석 없이 localhost:5030 로 바로 접근하기 위함)
+    if (process.env.NODE_ENV !== "production" && isLocalDevHost(hostname)) {
+        return NextResponse.next();
+    }
+
     if (hasMeaningfulSubdomain(hostname)) {
         return NextResponse.next();
     }
@@ -21,6 +27,15 @@ export function proxy(request: NextRequest) {
         status: 403,
         headers: { "content-type": "text/html; charset=utf-8" },
     });
+}
+
+function isLocalDevHost(hostname: string): boolean {
+    return (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "[::1]" ||
+        hostname.endsWith(".localhost")
+    );
 }
 
 function hasMeaningfulSubdomain(hostname: string): boolean {

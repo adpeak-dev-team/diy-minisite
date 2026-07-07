@@ -33,6 +33,7 @@ export function MarketingTab() {
                 enabled={s.enabled.countdown}
                 onToggle={(v) => updateEnabled("countdown", v)}
                 focusTarget="countdown"
+                anchor="countdown"
             >
                 <Field label="제목">
                     <input

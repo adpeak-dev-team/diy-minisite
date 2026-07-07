@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
     DndContext,
     DragEndEvent,
@@ -49,8 +50,21 @@ export function SectionsEditor({
     onChange: (next: Section[]) => void;
 }) {
     const confirm = useConfirm();
+    const [picking, setPicking] = useState(false);
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    );
 
-    const add = (type: SectionType = "image") =>
+    const handleDragEnd = (e: DragEndEvent) => {
+        const { active, over } = e;
+        if (!over || active.id === over.id) return;
+        const oldIndex = sections.findIndex((s) => s.id === String(active.id));
+        const newIndex = sections.findIndex((s) => s.id === String(over.id));
+        if (oldIndex < 0 || newIndex < 0) return;
+        onChange(arrayMove(sections, oldIndex, newIndex));
+    };
+
+    const add = (type: SectionType = "image") => {
         onChange([
             ...sections,
             {
@@ -61,88 +75,133 @@ export function SectionsEditor({
                 content: "",
             },
         ]);
+        setPicking(false);
+    };
 
     const patch = (id: string, p: Partial<Section>) =>
         onChange(sections.map((sec) => (sec.id === id ? { ...sec, ...p } : sec)));
 
+    const bulkAddImages = (urls: string[]) =>
+        onChange([
+            ...sections,
+            ...urls.map((url, i) => ({
+                id: uid(),
+                type: "image" as const,
+                title: `섹션 ${sections.length + i + 1}`,
+                image: url,
+                content: "",
+            })),
+        ]);
+
+    if (sections.length === 0) {
+        return (
+            <div>
+                <div className="text-sm font-medium text-slate-700 mb-2">
+                    무엇을 추가할까요?
+                </div>
+                <SectionTypePicker onPick={add} />
+                <div className="mt-2">
+                    <MultiImagePicker
+                        label="＋ 사진 여러 장 한 번에"
+                        onPick={bulkAddImages}
+                    />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div>
-            {sections.length === 0 ? (
-                <SectionTypePicker onPick={add} />
-            ) : (
-                <ul className="space-y-2 mb-3">
-                    {sections.map((sec, idx) => (
-                        <SectionItem
-                            key={sec.id}
-                            sec={sec}
-                            idx={idx}
-                            sections={sections}
-                            onChange={onChange}
-                            onPatch={(p) => patch(sec.id, p)}
-                            confirmDelete={async () =>
-                                confirm({
-                                    title: "이 섹션을 삭제할까요?",
-                                    message: "삭제한 섹션은 복구할 수 없습니다.",
-                                    confirmLabel: "삭제",
-                                    danger: true,
-                                })
-                            }
-                        />
-                    ))}
-                </ul>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-                <button
-                    type="button"
-                    className="btn btn-secondary w-full"
-                    onClick={() => add()}
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+            >
+                <SortableContext
+                    items={sections.map((s) => s.id)}
+                    strategy={verticalListSortingStrategy}
                 >
-                    + 섹션 추가
-                </button>
-                <MultiImagePicker
-                    label="+ 이미지 일괄 추가"
-                    onPick={(urls) =>
-                        onChange([
-                            ...sections,
-                            ...urls.map((url, i) => ({
-                                id: uid(),
-                                type: "image" as const,
-                                title: `섹션 ${sections.length + i + 1}`,
-                                image: url,
-                                content: "",
-                            })),
-                        ])
-                    }
-                />
-            </div>
+                    <ul className="space-y-2 mb-3">
+                        {sections.map((sec, idx) => (
+                            <SectionItem
+                                key={sec.id}
+                                sec={sec}
+                                idx={idx}
+                                sections={sections}
+                                onChange={onChange}
+                                onPatch={(p) => patch(sec.id, p)}
+                                confirmDelete={async () =>
+                                    confirm({
+                                        title: "이 내용을 삭제할까요?",
+                                        message: "삭제한 내용은 복구할 수 없습니다.",
+                                        confirmLabel: "삭제",
+                                        danger: true,
+                                    })
+                                }
+                            />
+                        ))}
+                    </ul>
+                </SortableContext>
+            </DndContext>
+
+            {picking ? (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-slate-700">
+                            무엇을 추가할까요?
+                        </span>
+                        <button
+                            type="button"
+                            className="text-xs text-slate-500 hover:text-slate-800 px-2 py-1"
+                            onClick={() => setPicking(false)}
+                        >
+                            닫기
+                        </button>
+                    </div>
+                    <SectionTypePicker onPick={add} />
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        type="button"
+                        className="btn btn-secondary w-full"
+                        onClick={() => setPicking(true)}
+                    >
+                        ＋ 내용 추가
+                    </button>
+                    <MultiImagePicker
+                        label="＋ 사진 여러 장"
+                        onPick={bulkAddImages}
+                    />
+                </div>
+            )}
         </div>
     );
 }
 
 function SectionTypePicker({ onPick }: { onPick: (type: SectionType) => void }) {
     return (
-        <div className="mb-3">
-            <div className="text-xs font-medium text-slate-700 mb-2">
-                추가할 섹션 유형을 선택하세요
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {SECTION_TYPES.map((t) => (
-                    <button
-                        key={t}
-                        type="button"
-                        onClick={() => onPick(t)}
-                        className="flex flex-col items-center gap-1 p-3 rounded-lg border border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50 transition"
-                        title={SECTION_TYPE_DESC[t]}
-                    >
-                        <span className="text-lg leading-none">
-                            {SECTION_TYPE_ICON[t]}
-                        </span>
-                        <span className="text-xs font-medium text-slate-700">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {SECTION_TYPES.map((t) => (
+                <button
+                    key={t}
+                    type="button"
+                    onClick={() => onPick(t)}
+                    className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:border-blue-400 hover:bg-blue-50 text-left transition"
+                >
+                    <span className="text-2xl leading-none shrink-0">
+                        {SECTION_TYPE_ICON[t]}
+                    </span>
+                    <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-slate-800">
                             {SECTION_TYPE_LABEL[t]}
                         </span>
-                    </button>
-                ))}
-            </div>
+                        <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                            {SECTION_TYPE_DESC[t]}
+                        </span>
+                    </span>
+                </button>
+            ))}
         </div>
     );
 }
@@ -162,47 +221,116 @@ function SectionItem({
     onPatch: (p: Partial<Section>) => void;
     confirmDelete: () => Promise<boolean>;
 }) {
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id: sec.id });
+    const style: React.CSSProperties = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : undefined,
+    };
     return (
-        <li className="border border-slate-200 rounded-lg p-3 bg-slate-50">
-            <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-[10px] px-1.5 py-0.5 bg-blue-600 text-white rounded">
-                    #{idx + 1}
+        <li
+            ref={setNodeRef}
+            style={style}
+            data-section-id={sec.id}
+            className={`border border-slate-200 rounded-xl p-3 bg-white ${
+                isDragging ? "shadow-lg z-10 relative" : ""
+            }`}
+        >
+            <div className="flex items-center gap-2 mb-2">
+                <button
+                    type="button"
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-700 shrink-0 text-sm leading-none"
+                    aria-label="드래그하여 순서 변경"
+                    title="드래그하여 순서 변경"
+                >
+                    ⋮⋮
+                </button>
+                <span className="text-[11px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded shrink-0">
+                    {idx + 1}
                 </span>
-                <span className="text-base leading-none" title={SECTION_TYPE_LABEL[sec.type]}>
+                <span className="text-xl leading-none shrink-0">
                     {SECTION_TYPE_ICON[sec.type]}
                 </span>
-                <input
-                    type="text"
-                    className="input-base flex-1 text-xs"
-                    value={sec.title}
-                    onChange={(e) => onPatch({ title: e.target.value })}
-                    placeholder="섹션 제목"
-                />
-                <select
-                    className="input-base text-xs"
-                    value={sec.type}
-                    onChange={(e) =>
-                        onPatch({ type: e.target.value as SectionType })
-                    }
-                >
-                    {SECTION_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                            {SECTION_TYPE_LABEL[t]}
-                        </option>
-                    ))}
-                </select>
-            </div>
-            <div className="bg-white p-2 rounded border border-slate-200 mb-2 space-y-2">
-                <SectionEffects sec={sec} onPatch={onPatch} />
-                <SectionBody sec={sec} onPatch={onPatch} />
-            </div>
-            <div className="flex justify-end">
+                <span className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">
+                    {SECTION_TYPE_LABEL[sec.type]}
+                    {sec.title ? (
+                        <span className="ml-1 text-xs font-normal text-slate-400">
+                            · {sec.title}
+                        </span>
+                    ) : null}
+                </span>
                 <ListRowActions
                     items={sections}
                     index={idx}
                     onChange={onChange}
                     onConfirmDelete={confirmDelete}
                 />
+            </div>
+
+            <div className="space-y-2">
+                <SectionBody sec={sec} onPatch={onPatch} />
+            </div>
+
+            <div className="mt-2 pt-2 border-t border-slate-100">
+                <button
+                    type="button"
+                    className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                    onClick={() => setShowAdvanced((v) => !v)}
+                >
+                    <span className="text-[10px]">
+                        {showAdvanced ? "▾" : "▸"}
+                    </span>
+                    옵션
+                </button>
+                {showAdvanced ? (
+                    <div className="mt-2 space-y-3 bg-slate-50 rounded-lg p-3">
+                        <label className="block">
+                            <span className="block text-xs text-slate-500 mb-1">
+                                이름 (관리용, 사이트엔 안 보임)
+                            </span>
+                            <input
+                                type="text"
+                                className="input-base w-full text-xs"
+                                value={sec.title}
+                                onChange={(e) =>
+                                    onPatch({ title: e.target.value })
+                                }
+                                placeholder="예: 첫 번째 사진"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="block text-xs text-slate-500 mb-1">
+                                유형 변경
+                            </span>
+                            <select
+                                className="input-base text-xs w-full"
+                                value={sec.type}
+                                onChange={(e) =>
+                                    onPatch({
+                                        type: e.target.value as SectionType,
+                                    })
+                                }
+                            >
+                                {SECTION_TYPES.map((t) => (
+                                    <option key={t} value={t}>
+                                        {SECTION_TYPE_LABEL[t]}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <SectionEffects sec={sec} onPatch={onPatch} />
+                    </div>
+                ) : null}
             </div>
         </li>
     );
@@ -218,7 +346,7 @@ function SectionEffects({
     return (
         <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-500">액션</span>
+                <span className="text-xs text-slate-500">나타나는 효과</span>
                 <select
                     className="input-base text-xs"
                     value={sec.animation ?? "none"}
@@ -239,7 +367,7 @@ function SectionEffects({
             </div>
             {sec.type === "image" || sec.type === "hero" || sec.type === "gallery" ? (
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500">효과</span>
+                    <span className="text-xs text-slate-500">이미지 꾸미기</span>
                     <select
                         className="input-base text-xs"
                         value={sec.effect ?? "none"}

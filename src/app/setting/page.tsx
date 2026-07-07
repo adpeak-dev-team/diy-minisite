@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
     EditorPanel,
     EditorTabs,
@@ -12,7 +12,12 @@ import { Preview, PreviewMode } from "./_preview/preview";
 import { ModalProvider, useConfirm } from "./_ui/modal";
 import { ToastProvider, useToast } from "./_ui/toast";
 import { initialSettings, Settings } from "./types";
-import { AutoFocusContext, DomainContext } from "./widgets";
+import {
+    AutoFocusContext,
+    DomainContext,
+    EditorFocus,
+    EditorFocusContext,
+} from "./widgets";
 import { clearAutosave, deleteDraft, Draft, saveDraft } from "./_editor/drafts";
 import {
     ImageLifecycleProvider,
@@ -25,6 +30,7 @@ import {
     useDrafts,
 } from "./_editor/drafts-ui";
 import { useSaveSettings, useSettings } from "@/service/setting";
+import { TEMPLATES } from "./templates";
 
 type LoadState =
     | { status: "idle" }
@@ -78,8 +84,32 @@ function SettingPageInner() {
     const [autoFocus, setAutoFocus] = useState(true);
     const [mode, setMode] = useState<PreviewMode>("pc");
     const [currentPageId, setCurrentPageId] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<TabKey>("basic");
+    const [activeTab, setActiveTab] = useState<TabKey>("info");
     const [pane, setPane] = useState<Pane>("editor");
+    // 미리보기에서 클릭한 섹션을 페이지 구성 탭에서 스크롤·강조하기 위한 대기 상태.
+    const [pendingFocus, setPendingFocus] = useState<{
+        id: string;
+        n: number;
+    } | null>(null);
+    const focusNonceRef = useRef(0);
+    // 미리보기에서 클릭한 헤더/푸터/위치 등 아코디언을 열고 강조하기 위한 상태.
+    const [editorFocus, setEditorFocus] = useState<EditorFocus>(null);
+
+    // 페이지 선택 공통 진입점. 하위 페이지 컨테이너(childrenEnabled + children)는
+    // 자체 내용이 없으므로 선택 시 첫 하위 페이지로 대신 이동한다.
+    const selectPage = useCallback(
+        (id: string | null) => {
+            if (id) {
+                const page = s.subPages.find((p) => p.id === id);
+                if (page?.childrenEnabled && (page.children?.length ?? 0) > 0) {
+                    setCurrentPageId(page.children![0].id);
+                    return;
+                }
+            }
+            setCurrentPageId(id);
+        },
+        [s.subPages],
+    );
 
     // 서버 baseline (query) ↔ 편집중 s (로컬) 분리.
     // 자동 refetch 는 QueryProvider 기본설정으로 꺼져 있어 s 가 덮어써질 일 없음.
@@ -169,6 +199,88 @@ function SettingPageInner() {
         toast.show("초기화되었습니다.", "info");
     }, [confirm, toast]);
 
+    const handleApplyTemplate = useCallback(
+        async (id: string) => {
+            const tpl = TEMPLATES.find((t) => t.id === id);
+            if (!tpl) return;
+            const ok = await confirm({
+                title: `'${tpl.name}' 템플릿을 적용할까요?`,
+                message:
+                    "현재 편집 중인 내용이 템플릿으로 교체됩니다. 되돌릴 수 없습니다.",
+                confirmLabel: "적용",
+                danger: true,
+            });
+            if (!ok) return;
+            // 도메인은 현재 사이트 값을 유지 (템플릿이 덮어쓰지 않도록).
+            setS({ ...tpl.build(), domain: s.domain });
+            setCurrentPageId(null);
+            toast.show(`'${tpl.name}' 템플릿을 적용했습니다.`, "info");
+        },
+        [confirm, s.domain, toast],
+    );
+
+    // 미리보기에서 특정 영역 클릭 → 해당 편집 탭으로 이동.
+    const handleEditPart = useCallback((part: string) => {
+        setPane("editor"); // 모바일: 미리보기 → 편집 창으로 전환
+        if (part.startsWith("section:")) {
+            const id = part.slice("section:".length);
+            setActiveTab("structure");
+            // 탭이 방금 바뀐 경우 섹션이 아직 안 그려졌을 수 있으므로 nonce 로
+            // effect 를 트리거해 렌더 완료까지 재시도하며 스크롤 + 강조.
+            focusNonceRef.current += 1;
+            setPendingFocus({ id, n: focusNonceRef.current });
+            return;
+        }
+        // 나머지 영역: 해당 탭으로 이동 + 그 아코디언을 열고 강조 (anchor 로 매칭).
+        const focusAnchor = (anchor: string, tab: TabKey) => {
+            setActiveTab(tab);
+            focusNonceRef.current += 1;
+            setEditorFocus({ anchor, nonce: focusNonceRef.current });
+        };
+        if (part === "location") return focusAnchor("location", "info");
+        if (part === "header") return focusAnchor("header", "header");
+        if (part === "footer" || part === "bottom")
+            return focusAnchor(part, "footer");
+        if (part === "countdown") return focusAnchor("countdown", "fixed");
+    }, []);
+
+    // 클릭한 섹션이 페이지 구성 탭에 렌더될 때까지 재시도하며 스크롤 + 강조.
+    useEffect(() => {
+        if (!pendingFocus) return;
+        let attempts = 0;
+        let timer = 0;
+        const tryFocus = () => {
+            const el = document.querySelector(
+                `[data-section-id="${pendingFocus.id}"]`,
+            ) as HTMLElement | null;
+            if (el) {
+                // 양식폼처럼 뷰포트보다 긴 섹션은 가운데 정렬 시 상단이 잘려
+                // 어색하므로 상단(start)에 맞춰 스크롤한다. 짧은 섹션만 가운데로.
+                const tall = el.getBoundingClientRect().height >
+                    window.innerHeight * 0.8;
+                el.scrollIntoView({
+                    behavior: "smooth",
+                    block: tall ? "start" : "center",
+                });
+                el.style.outline = "2px solid #2563eb";
+                el.style.outlineOffset = "2px";
+                window.setTimeout(() => {
+                    el.style.outline = "";
+                    el.style.outlineOffset = "";
+                }, 1600);
+                setPendingFocus(null);
+                return;
+            }
+            if (attempts++ < 40) {
+                timer = window.setTimeout(tryFocus, 25);
+            } else {
+                setPendingFocus(null);
+            }
+        };
+        timer = window.setTimeout(tryFocus, 0);
+        return () => window.clearTimeout(timer);
+    }, [pendingFocus]);
+
     // 자동저장 + 임시저장 목록 (localStorage, 서버 미연결 상태 작업 보호)
     const { drafts, autosavedAt, restorable, refreshDrafts, dismissRestore } =
         useDrafts({ domain, s, enabled: load.status !== "loading" });
@@ -243,7 +355,8 @@ function SettingPageInner() {
                             s={s}
                             mode={mode}
                             currentPageId={currentPageId}
-                            onNavigate={setCurrentPageId}
+                            onNavigate={selectPage}
+                            onEditPart={handleEditPart}
                         />
                         <AutoFocusToggle
                             value={autoFocus}
@@ -275,13 +388,32 @@ function SettingPageInner() {
                                         : "좌측 미리보기로 결과를 즉시 확인할 수 있습니다"}
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                className="btn btn-ghost btn-xs shrink-0"
-                                onClick={handleReset}
-                            >
-                                초기화
-                            </button>
+                            <div className="flex items-center gap-2 shrink-0">
+                                <select
+                                    className="input-base text-xs"
+                                    value=""
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        e.currentTarget.value = "";
+                                        if (v) handleApplyTemplate(v);
+                                    }}
+                                    title="템플릿을 골라 편집을 시작하세요"
+                                >
+                                    <option value="">＋ 템플릿 선택</option>
+                                    {TEMPLATES.map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs"
+                                    onClick={handleReset}
+                                >
+                                    초기화
+                                </button>
+                            </div>
                         </div>
                         <EditorTabs
                             activeTab={activeTab}
@@ -291,7 +423,7 @@ function SettingPageInner() {
                             <PageSelector
                                 subPages={s.subPages}
                                 currentPageId={currentPageId}
-                                onSelect={setCurrentPageId}
+                                onSelect={selectPage}
                             />
                         ) : null}
                     </div>
@@ -304,13 +436,16 @@ function SettingPageInner() {
                                 onDismiss={dismissRestore}
                             />
                         ) : null}
-                        <EditorPanel
-                            s={s}
-                            setS={setS}
-                            currentPageId={currentPageId}
-                            setCurrentPageId={setCurrentPageId}
-                            activeTab={activeTab}
-                        />
+                        <EditorFocusContext.Provider value={editorFocus}>
+                            <EditorPanel
+                                s={s}
+                                setS={setS}
+                                currentPageId={currentPageId}
+                                setCurrentPageId={selectPage}
+                                activeTab={activeTab}
+                                setActiveTab={setActiveTab}
+                            />
+                        </EditorFocusContext.Provider>
                         {load.status === "loading" && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm text-slate-600">
                                 불러오는 중…

@@ -20,16 +20,22 @@ import { SectionBlock } from "./sections";
 
 export type PreviewMode = "mobile" | "pc";
 
+// 미리보기의 특정 영역을 클릭했을 때 편집기에 알리는 콜백의 인자.
+// "header" | "footer" | "location" | "bottom" | "section:<id>" 등.
+export type EditPart = string;
+
 export function Preview({
     s,
     mode,
     currentPageId,
     onNavigate,
+    onEditPart,
 }: {
     s: Settings;
     mode: PreviewMode;
     currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
+    onEditPart?: (part: EditPart) => void;
 }) {
     const sections = resolveSections(s, currentPageId);
     return mode === "pc" ? (
@@ -38,6 +44,7 @@ export function Preview({
             sections={sections}
             currentPageId={currentPageId}
             onNavigate={onNavigate}
+            onEditPart={onEditPart}
         />
     ) : (
         <MobilePreview
@@ -45,8 +52,22 @@ export function Preview({
             sections={sections}
             currentPageId={currentPageId}
             onNavigate={onNavigate}
+            onEditPart={onEditPart}
         />
     );
+}
+
+// 미리보기 스크롤 영역의 클릭을 위임받아, data-edit 표식이 있는 가장 가까운
+// 조상을 찾아 편집기로 전달한다. 링크/버튼/입력 등 실제 조작 요소 클릭은 무시.
+function makeEditClick(onEditPart?: (part: EditPart) => void) {
+    if (!onEditPart) return undefined;
+    return (e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (target.closest("a,button,input,textarea,select,label")) return;
+        const el = target.closest("[data-edit]");
+        const part = el?.getAttribute("data-edit");
+        if (part) onEditPart(part);
+    };
 }
 
 function resolveSections(s: Settings, currentPageId: string | null): Section[] {
@@ -73,11 +94,13 @@ function PCPreview({
     sections,
     currentPageId,
     onNavigate,
+    onEditPart,
 }: {
     s: Settings;
     sections: Section[];
     currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
+    onEditPart?: (part: EditPart) => void;
 }) {
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
@@ -86,6 +109,7 @@ function PCPreview({
     const orderedSections = expandFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
+    const editClick = makeEditClick(onEditPart);
 
     return (
         <div className="w-full max-w-210 h-160 flex flex-col bg-white rounded-lg shadow-2xl overflow-hidden border border-slate-200">
@@ -101,17 +125,25 @@ function PCPreview({
                 className="relative flex-1 flex flex-col bg-white overflow-hidden"
                 style={{ fontFamily }}
             >
-                <div ref={scrollRef} className="flex-1 overflow-y-auto">
+                <div
+                    ref={scrollRef}
+                    className="flex-1 overflow-y-auto"
+                    onClick={editClick}
+                >
                     {s.enabled.header ? (
-                        <PreviewHeader
-                            s={s}
-                            px={headerPx}
-                            pc
-                            onNavigate={onNavigate}
-                        />
+                        <div data-edit="header">
+                            <PreviewHeader
+                                s={s}
+                                px={headerPx}
+                                pc
+                                onNavigate={onNavigate}
+                            />
+                        </div>
                     ) : null}
                     {s.enabled.countdown && s.countdown.position === "top" ? (
-                        <CountdownBanner s={s} pc />
+                        <div data-edit="countdown">
+                            <CountdownBanner s={s} pc />
+                        </div>
                     ) : null}
                     <ChildPagesNav
                         s={s}
@@ -120,11 +152,17 @@ function PCPreview({
                     />
                     <PageBody sections={orderedSections} enabled={s.enabled.sections} pc privacyText={s.privacyPolicy} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
-                        <LocationMap location={s.location} pc />
+                        <div data-edit="location">
+                            <LocationMap location={s.location} pc />
+                        </div>
                     ) : null}
-                    <FooterBlock footer={s.footer} pc />
+                    <div data-edit="footer">
+                        <FooterBlock footer={s.footer} pc />
+                    </div>
                     {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                        <CountdownBanner s={s} pc />
+                        <div data-edit="countdown">
+                            <CountdownBanner s={s} pc />
+                        </div>
                     ) : null}
                 </div>
 
@@ -175,11 +213,13 @@ function MobilePreview({
     sections,
     currentPageId,
     onNavigate,
+    onEditPart,
 }: {
     s: Settings;
     sections: Section[];
     currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
+    onEditPart?: (part: EditPart) => void;
 }) {
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
@@ -189,6 +229,7 @@ function MobilePreview({
     const orderedSections = expandFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
+    const editClick = makeEditClick(onEditPart);
 
     return (
         <div className="relative w-[320px] h-[660px] bg-black rounded-[42px] p-2 shadow-2xl">
@@ -201,16 +242,21 @@ function MobilePreview({
                     ref={scrollRef}
                     className="flex-1 overflow-y-auto"
                     style={{ paddingBottom: bottomOffset }}
+                    onClick={editClick}
                 >
                     {s.enabled.header ? (
-                        <PreviewHeader
-                            s={s}
-                            px={headerPx}
-                            onNavigate={onNavigate}
-                        />
+                        <div data-edit="header">
+                            <PreviewHeader
+                                s={s}
+                                px={headerPx}
+                                onNavigate={onNavigate}
+                            />
+                        </div>
                     ) : null}
                     {s.enabled.countdown && s.countdown.position === "top" ? (
-                        <CountdownBanner s={s} />
+                        <div data-edit="countdown">
+                            <CountdownBanner s={s} />
+                        </div>
                     ) : null}
                     <ChildPagesNav
                         s={s}
@@ -219,11 +265,17 @@ function MobilePreview({
                     />
                     <PageBody sections={orderedSections} enabled={s.enabled.sections} privacyText={s.privacyPolicy} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
-                        <LocationMap location={s.location} />
+                        <div data-edit="location">
+                            <LocationMap location={s.location} />
+                        </div>
                     ) : null}
-                    <FooterBlock footer={s.footer} />
+                    <div data-edit="footer">
+                        <FooterBlock footer={s.footer} />
+                    </div>
                     {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                        <CountdownBanner s={s} />
+                        <div data-edit="countdown">
+                            <CountdownBanner s={s} />
+                        </div>
                     ) : null}
                 </div>
 
@@ -285,10 +337,18 @@ function PageBody({
     return (
         <div>
             {sections.map((sec) => (
-                <SectionBlock key={sec.id} sec={sec} pc={pc} privacyText={privacyText} />
+                <div key={sec.id} data-edit={`section:${baseSectionId(sec.id)}`}>
+                    <SectionBlock sec={sec} pc={pc} privacyText={privacyText} />
+                </div>
             ))}
         </div>
     );
+}
+
+// expandFixedForms / resolveSections 가 붙이는 접미사(__bottom-dup, __from-main)를
+// 제거해 원본 섹션 id 로 되돌린다 (편집 대상 매칭용).
+function baseSectionId(id: string): string {
+    return id.replace(/__(bottom-dup|from-main)$/, "");
 }
 
 // 헤더 "스크롤 상호작용" 모드용 슬라이딩 오버레이.

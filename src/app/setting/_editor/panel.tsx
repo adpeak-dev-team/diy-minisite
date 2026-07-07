@@ -1,27 +1,37 @@
 "use client";
 
 import { findSubPage, patchSubPage, Section, Settings, SubPage } from "../types";
-import { BasicTab } from "./tabs/basic-tab";
+import {
+    FixedSubTab,
+    FooterSubTab,
+    HeaderSubTab,
+    InfoSubTab,
+    MenuTab,
+    MobileBottomTab,
+} from "./tabs/basic-tab";
 import { LegalTab } from "./tabs/legal-tab";
-import { LocationTab } from "./tabs/location-tab";
 import { MarketingTab } from "./tabs/marketing-tab";
 import { StructureTab } from "./tabs/structure-tab";
 import { SettingsProvider, SettingsContextValue } from "./tabs/context";
 import { Updater } from "./tabs/shared";
 
 export type TabKey =
-    | "basic"
+    | "info"
+    | "menu"
+    | "header"
+    | "footer"
     | "structure"
-    | "marketing"
-    | "location"
+    | "fixed"
     | "legal";
 
-export const TABS: { key: TabKey; label: string; hint: string }[] = [
-    { key: "basic", label: "기본", hint: "사이트 기본 정보 · 헤더 · 푸터 · 하단 고정 · 연결" },
-    { key: "structure", label: "페이지 구성", hint: "본문 컨텐츠 · 서브페이지 · 하부 메뉴" },
-    { key: "marketing", label: "전환 · 마케팅", hint: "CTA · 팝업 · 카운트다운" },
-    { key: "location", label: "위치", hint: "주소 · 지도" },
-    { key: "legal", label: "약관 · 메시지", hint: "개인정보 · 완료 메시지" },
+export const TABS: { key: TabKey; label: string }[] = [
+    { key: "info", label: "기본정보" },
+    { key: "menu", label: "메뉴관리" },
+    { key: "header", label: "상단" },
+    { key: "footer", label: "하단" },
+    { key: "structure", label: "페이지 구성" },
+    { key: "fixed", label: "기능" },
+    { key: "legal", label: "약관·메시지" },
 ];
 
 export function EditorTabs({
@@ -31,7 +41,6 @@ export function EditorTabs({
     activeTab: TabKey;
     onChange: (next: TabKey) => void;
 }) {
-    const activeTabHint = TABS.find((t) => t.key === activeTab)?.hint;
     return (
         <div className="px-5 border-b border-slate-200">
             <div
@@ -59,11 +68,6 @@ export function EditorTabs({
                     );
                 })}
             </div>
-            {activeTabHint ? (
-                <div className="text-[11px] text-slate-400 pb-2 pt-1">
-                    {activeTabHint}
-                </div>
-            ) : null}
         </div>
     );
 }
@@ -74,12 +78,14 @@ export function EditorPanel({
     currentPageId,
     setCurrentPageId,
     activeTab,
+    setActiveTab,
 }: {
     s: Settings;
     setS: (next: Settings | ((prev: Settings) => Settings)) => void;
     currentPageId: string | null;
     setCurrentPageId: (next: string | null) => void;
     activeTab: TabKey;
+    setActiveTab: (next: TabKey) => void;
 }) {
     const update: Updater = (key, value) =>
         setS((prev) => ({ ...prev, [key]: value }));
@@ -133,6 +139,11 @@ export function EditorPanel({
         }));
     };
 
+    const editPageDesign = (id: string | null) => {
+        setCurrentPageId(id);
+        if (id !== null) setActiveTab("structure");
+    };
+
     const ctx: SettingsContextValue = {
         s,
         update,
@@ -140,24 +151,36 @@ export function EditorPanel({
         updateHeader,
         updateSubMenus,
         updateEnabled,
+        currentPageId,
+        editPageDesign,
     };
 
     return (
         <SettingsProvider value={ctx}>
             <div className="space-y-2">
-                {activeTab === "basic" && <BasicTab />}
+                {activeTab === "info" && <InfoSubTab />}
+                {activeTab === "menu" && <MenuTab />}
                 {activeTab === "structure" && (
                     <StructureTab
-                        currentPageId={currentPageId}
-                        setCurrentPageId={setCurrentPageId}
                         currentSubPage={currentSubPage}
                         parentSubPage={parentSubPage}
                         pageSections={pageSections}
                         setPageSections={setPageSections}
                     />
                 )}
-                {activeTab === "marketing" && <MarketingTab />}
-                {activeTab === "location" && <LocationTab />}
+                {activeTab === "header" && <HeaderSubTab />}
+                {activeTab === "footer" && (
+                    <>
+                        <FooterSubTab />
+                        <MobileBottomTab />
+                    </>
+                )}
+                {activeTab === "fixed" && (
+                    <>
+                        <FixedSubTab />
+                        <MarketingTab />
+                    </>
+                )}
                 {activeTab === "legal" && <LegalTab />}
             </div>
         </SettingsProvider>
@@ -180,7 +203,7 @@ export function PageSelector({
     const showChildren = !!parentPill?.children?.length;
 
     return (
-        <div className="px-4 sm:px-5 py-2 border-b border-slate-200 bg-white">
+        <div className="px-4 sm:px-5 py-2 bg-white">
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                 <div className="text-[11px] font-medium text-blue-700 mb-1.5 flex items-center gap-1">
                     <span>📐</span>
