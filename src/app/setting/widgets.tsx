@@ -59,6 +59,7 @@ export function AccordionSection({
     defaultOpen = false,
     focusTarget,
     anchor,
+    focusScroll = true,
     children,
 }: {
     title: string;
@@ -68,6 +69,9 @@ export function AccordionSection({
     defaultOpen?: boolean;
     focusTarget?: string;
     anchor?: string;
+    // anchor 로 열릴 때 아코디언 자체를 스크롤·강조할지. false 면 열기만 하고
+    // (내부에서 특정 섹션을 직접 스크롤·강조하는 경우) 아코디언 강조는 생략.
+    focusScroll?: boolean;
     children: ReactNode;
 }) {
     const [open, setOpen] = useState(defaultOpen);
@@ -98,6 +102,7 @@ export function AccordionSection({
         // 렌더/탭 전환 직후일 수 있어 다음 틱에 실행 (동기 setState 회피).
         const openTimer = window.setTimeout(() => {
             setOpen(true);
+            if (!focusScroll) return; // 열기만 하고 강조는 내부(섹션)에 위임
             const el = rowRef.current;
             if (!el) return;
             el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -112,7 +117,7 @@ export function AccordionSection({
             window.clearTimeout(openTimer);
             window.clearTimeout(clearTimer);
         };
-    }, [focus, anchor]);
+    }, [focus, anchor, focusScroll]);
 
     return (
         <div ref={rowRef} className="accordion-row">

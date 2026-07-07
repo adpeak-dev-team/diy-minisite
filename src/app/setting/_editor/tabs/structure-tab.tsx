@@ -48,8 +48,8 @@ export function StructureTab({
             desc="사진 · 글 · 신청폼 등을 추가하고 순서를 바꿀 수 있어요"
             enabled={s.enabled.sections}
             onToggle={(v) => updateEnabled("sections", v)}
-            focusTarget="hero"
-            defaultOpen
+            anchor="sections"
+            focusScroll={false}
         >
             <SectionsEditor sections={pageSections} onChange={setPageSections} />
         </AccordionSection>

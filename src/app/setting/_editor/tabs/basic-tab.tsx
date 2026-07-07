@@ -24,7 +24,7 @@ export function InfoSubTab() {
     const { s, update, updateInfo, updateEnabled } = useSettings();
     return (
         <>
-            <AccordionSection title="사이트 기본 정보" defaultOpen>
+            <AccordionSection title="사이트 기본 정보">
                 <Field label="사이트 주소 (도메인)">
                     <div className="flex items-center gap-2">
                         <input
@@ -161,7 +161,6 @@ export function HeaderSubTab() {
             enabled={s.enabled.header}
             onToggle={(v) => updateEnabled("header", v)}
             anchor="header"
-            defaultOpen
         >
             <Field
                 label="상단 고정 방식"
@@ -305,7 +304,6 @@ export function MenuTab() {
             <AccordionSection
                 title="메뉴 · 페이지 관리"
                 desc={`페이지 ${s.subPages.length}개 · 상단 메뉴 ${s.header.menus.length}개`}
-                defaultOpen
             >
                 <div className="flex items-center gap-2 mb-3">
                     <Toggle
@@ -389,7 +387,6 @@ export function FooterSubTab() {
             title="하단 스타일"
             desc="상호명 / 대표 / 사업자번호 / 대표번호"
             anchor="footer"
-            defaultOpen
         >
             <div className="grid grid-cols-2 gap-3">
                 <Field label="상호명">
@@ -466,7 +463,6 @@ export function MobileBottomTab() {
             enabled={s.enabled.bottomFixed}
             onToggle={(v) => updateEnabled("bottomFixed", v)}
             anchor="bottom"
-            defaultOpen
         >
             <BottomFixedEditor
                 value={s.bottomFixed}

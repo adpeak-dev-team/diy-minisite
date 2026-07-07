@@ -225,9 +225,11 @@ function SettingPageInner() {
         if (part.startsWith("section:")) {
             const id = part.slice("section:".length);
             setActiveTab("structure");
-            // 탭이 방금 바뀐 경우 섹션이 아직 안 그려졌을 수 있으므로 nonce 로
-            // effect 를 트리거해 렌더 완료까지 재시도하며 스크롤 + 강조.
             focusNonceRef.current += 1;
+            // 콘텐츠 아코디언은 기본 닫힘 상태이므로 먼저 열어야 섹션이 렌더된다.
+            // (focusScroll=false 라 아코디언 강조는 생략되고, 아래 pendingFocus 가
+            // 해당 섹션이 그려질 때까지 재시도하며 스크롤 + 강조한다.)
+            setEditorFocus({ anchor: "sections", nonce: focusNonceRef.current });
             setPendingFocus({ id, n: focusNonceRef.current });
             return;
         }
