@@ -55,6 +55,7 @@ export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }
 
     return (
         <div
+            data-edit="countdown"
             data-focus-target="countdown"
             className={padCls}
             style={{

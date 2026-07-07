@@ -17,19 +17,21 @@ import { Updater } from "./tabs/shared";
 
 export type TabKey =
     | "info"
+    | "main"
     | "menu"
+    | "subpages"
     | "header"
     | "footer"
-    | "structure"
     | "fixed"
     | "legal";
 
 export const TABS: { key: TabKey; label: string }[] = [
     { key: "info", label: "기본정보" },
+    { key: "main", label: "메인페이지" },
     { key: "menu", label: "메뉴관리" },
+    { key: "subpages", label: "서브페이지" },
     { key: "header", label: "상단" },
     { key: "footer", label: "하단" },
-    { key: "structure", label: "페이지 구성" },
     { key: "fixed", label: "기능" },
     { key: "legal", label: "약관·메시지" },
 ];
@@ -141,7 +143,7 @@ export function EditorPanel({
 
     const editPageDesign = (id: string | null) => {
         setCurrentPageId(id);
-        if (id !== null) setActiveTab("structure");
+        if (id !== null) setActiveTab("subpages");
     };
 
     const ctx: SettingsContextValue = {
@@ -159,9 +161,19 @@ export function EditorPanel({
         <SettingsProvider value={ctx}>
             <div className="space-y-2">
                 {activeTab === "info" && <InfoSubTab />}
-                {activeTab === "menu" && <MenuTab />}
-                {activeTab === "structure" && (
+                {activeTab === "main" && (
                     <StructureTab
+                        scope="main"
+                        currentSubPage={null}
+                        parentSubPage={null}
+                        pageSections={s.sections}
+                        setPageSections={(next) => update("sections", next)}
+                    />
+                )}
+                {activeTab === "menu" && <MenuTab />}
+                {activeTab === "subpages" && (
+                    <StructureTab
+                        scope="subpages"
                         currentSubPage={currentSubPage}
                         parentSubPage={parentSubPage}
                         pageSections={pageSections}
@@ -207,20 +219,14 @@ export function PageSelector({
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                 <div className="text-[11px] font-medium text-blue-700 mb-1.5 flex items-center gap-1">
                     <span>📐</span>
-                    <span>편집 중인 페이지</span>
+                    <span>편집 중인 서브페이지</span>
                 </div>
                 <div className="flex items-center gap-1.5 overflow-x-auto">
-                    <button
-                        type="button"
-                        onClick={() => onSelect(null)}
-                        className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap transition ${
-                            currentPageId === null
-                                ? "bg-blue-600 text-white shadow"
-                                : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-                        }`}
-                    >
-                        메인 페이지
-                    </button>
+                    {subPages.length === 0 ? (
+                        <span className="text-[11px] text-slate-400 py-1">
+                            서브페이지가 없습니다. ‘메뉴관리’ 탭에서 추가하세요.
+                        </span>
+                    ) : null}
                     {subPages.map((p) => {
                         // 자식이 선택된 경우 부모 pill 을 "선택된 상태" 로 표시하되
                         // 배경톤을 옅게(파랑300) 해서 실제 활성(파랑600) 자식과 구분.

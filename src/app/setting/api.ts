@@ -307,6 +307,9 @@ function landToSettings(land: Land): Settings {
       return "fix";
     })(),
     font: (asString(land.ld_font) || initialSettings.font) as Settings["font"],
+    contentFont: (asString(jsonFooter.mainFont) || undefined) as
+      | Settings["contentFont"]
+      | undefined,
     siteDescription: asString(land.ld_description),
     additionalScript: asString(land.ld_add_scripts),
     header: {
@@ -454,6 +457,8 @@ function landToSettings(land: Land): Settings {
       phone: footer.phone || asString(land.ld_ft_phone),
       font: (asString(jsonFooter.font) ||
         initialSettings.footer.font) as Settings["footer"]["font"],
+      bgColor: asString(jsonFooter.bgColor),
+      textColor: asString(jsonFooter.textColor),
     },
     privacyPolicy: asString(land.ld_consent_info),
     completeMessage: asString(land.ld_complete_msg),
@@ -470,6 +475,8 @@ function landToSettings(land: Land): Settings {
       quickConnect: hasKakao || hasSms,
       location:
         !!asString(jsonLocation.address) || !!asString(land.ld_location),
+      advanced:
+        !!asString(land.ld_description) || !!asString(land.ld_add_scripts),
       // ld_json_enabled 가 있으면 위 자동 값들을 덮어씀
       ...(jsonEnabled as Partial<Settings["enabled"]>),
     },
@@ -866,6 +873,9 @@ export function settingsToLand(s: Settings): LandPatch {
       ceo: s.footer.ceo,
       bizNumber: s.footer.bizNumber,
       font: s.footer.font,
+      bgColor: s.footer.bgColor,
+      textColor: s.footer.textColor,
+      mainFont: s.contentFont ?? "",
     }),
     ld_json_location: JSON.stringify(s.location),
     ld_json_header_menus: JSON.stringify(s.header.menus),

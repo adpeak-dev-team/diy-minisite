@@ -1,7 +1,7 @@
 "use client";
 
 import { RefObject, useEffect, useRef, useState } from "react";
-import { findSubPage, Section, Settings, SubPage } from "../types";
+import { findSubPage, FontKey, Section, Settings, SubPage } from "../types";
 import { fontFamilyOf, parsePxOr } from "../lib";
 import { CountdownBanner, CountdownFloating } from "./countdown";
 import {
@@ -70,6 +70,19 @@ function makeEditClick(onEditPart?: (part: EditPart) => void) {
     };
 }
 
+// 현재 페이지의 본문 글씨체 키. 페이지별 override 없으면 사이트 기본 글씨체.
+function resolveContentFontKey(
+    s: Settings,
+    currentPageId: string | null,
+): FontKey {
+    if (!currentPageId) return s.contentFont || s.font;
+    let sub = findSubPage(s.subPages, currentPageId)?.page;
+    if (sub?.childrenEnabled && sub.children && sub.children.length > 0) {
+        sub = sub.children[0];
+    }
+    return sub?.font || s.font;
+}
+
 function resolveSections(s: Settings, currentPageId: string | null): Section[] {
     if (!currentPageId) return s.sections;
     let sub = findSubPage(s.subPages, currentPageId)?.page;
@@ -109,6 +122,7 @@ function PCPreview({
     const orderedSections = expandFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
+    const isFix = s.enabled.header && s.headerStyle === "fix";
     const editClick = makeEditClick(onEditPart);
 
     return (
@@ -131,7 +145,10 @@ function PCPreview({
                     onClick={editClick}
                 >
                     {s.enabled.header ? (
-                        <div data-edit="header">
+                        <div
+                            data-edit="header"
+                            className={isFix ? "sticky top-0 z-30" : undefined}
+                        >
                             <PreviewHeader
                                 s={s}
                                 px={headerPx}
@@ -141,16 +158,14 @@ function PCPreview({
                         </div>
                     ) : null}
                     {s.enabled.countdown && s.countdown.position === "top" ? (
-                        <div data-edit="countdown">
-                            <CountdownBanner s={s} pc />
-                        </div>
+                        <CountdownBanner s={s} pc />
                     ) : null}
                     <ChildPagesNav
                         s={s}
                         currentPageId={currentPageId}
                         onNavigate={onNavigate}
                     />
-                    <PageBody sections={orderedSections} enabled={s.enabled.sections} pc privacyText={s.privacyPolicy} />
+                    <PageBody sections={orderedSections} enabled={s.enabled.sections} pc privacyText={s.privacyPolicy} fontFamily={fontFamilyOf(resolveContentFontKey(s, currentPageId)) ?? undefined} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
                         <div data-edit="location">
                             <LocationMap location={s.location} pc />
@@ -160,9 +175,7 @@ function PCPreview({
                         <FooterBlock footer={s.footer} pc />
                     </div>
                     {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                        <div data-edit="countdown">
-                            <CountdownBanner s={s} pc />
-                        </div>
+                        <CountdownBanner s={s} pc />
                     ) : null}
                 </div>
 
@@ -229,6 +242,7 @@ function MobilePreview({
     const orderedSections = expandFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
+    const isFix = s.enabled.header && s.headerStyle === "fix";
     const editClick = makeEditClick(onEditPart);
 
     return (
@@ -245,7 +259,10 @@ function MobilePreview({
                     onClick={editClick}
                 >
                     {s.enabled.header ? (
-                        <div data-edit="header">
+                        <div
+                            data-edit="header"
+                            className={isFix ? "sticky top-0 z-30" : undefined}
+                        >
                             <PreviewHeader
                                 s={s}
                                 px={headerPx}
@@ -254,16 +271,14 @@ function MobilePreview({
                         </div>
                     ) : null}
                     {s.enabled.countdown && s.countdown.position === "top" ? (
-                        <div data-edit="countdown">
-                            <CountdownBanner s={s} />
-                        </div>
+                        <CountdownBanner s={s} />
                     ) : null}
                     <ChildPagesNav
                         s={s}
                         currentPageId={currentPageId}
                         onNavigate={onNavigate}
                     />
-                    <PageBody sections={orderedSections} enabled={s.enabled.sections} privacyText={s.privacyPolicy} />
+                    <PageBody sections={orderedSections} enabled={s.enabled.sections} privacyText={s.privacyPolicy} fontFamily={fontFamilyOf(resolveContentFontKey(s, currentPageId)) ?? undefined} />
                     {s.enabled.location && (s.location.embedUrl || s.location.address) ? (
                         <div data-edit="location">
                             <LocationMap location={s.location} />
@@ -273,9 +288,7 @@ function MobilePreview({
                         <FooterBlock footer={s.footer} />
                     </div>
                     {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                        <div data-edit="countdown">
-                            <CountdownBanner s={s} />
-                        </div>
+                        <CountdownBanner s={s} />
                     ) : null}
                 </div>
 
@@ -326,16 +339,19 @@ function PageBody({
     enabled,
     pc,
     privacyText,
+    fontFamily,
 }: {
     sections: Section[];
     enabled: boolean;
     pc?: boolean;
     privacyText: string;
+    // 이 페이지 본문 글씨체 (미지정이면 프레임의 사이트 글씨체 상속).
+    fontFamily?: string;
 }) {
     if (!enabled) return null;
     if (sections.length === 0) return <PreviewEmpty />;
     return (
-        <div>
+        <div style={fontFamily ? { fontFamily } : undefined}>
             {sections.map((sec) => (
                 <div key={sec.id} data-edit={`section:${baseSectionId(sec.id)}`}>
                     <SectionBlock sec={sec} pc={pc} privacyText={privacyText} />
@@ -427,6 +443,7 @@ export function LiveSite({
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction =
         s.enabled.header && s.headerStyle === "interaction";
+    const isFix = s.enabled.header && s.headerStyle === "fix";
 
     return (
         <div
@@ -439,7 +456,9 @@ export function LiveSite({
                 style={{ paddingBottom: bottomOffset }}
             >
                 {s.enabled.header ? (
-                    <PreviewHeader s={s} px={headerPx} />
+                    <div className={isFix ? "sticky top-0 z-30" : undefined}>
+                        <PreviewHeader s={s} px={headerPx} />
+                    </div>
                 ) : null}
                 {s.enabled.countdown && s.countdown.position === "top" ? (
                     <CountdownBanner s={s} />
@@ -449,6 +468,10 @@ export function LiveSite({
                     sections={orderedSections}
                     enabled={s.enabled.sections}
                     privacyText={s.privacyPolicy}
+                    fontFamily={
+                        fontFamilyOf(resolveContentFontKey(s, currentPageId)) ??
+                        undefined
+                    }
                 />
                 {s.enabled.location &&
                 (s.location.embedUrl || s.location.address) ? (

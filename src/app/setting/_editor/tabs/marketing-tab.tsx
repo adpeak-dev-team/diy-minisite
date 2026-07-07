@@ -135,6 +135,32 @@ export function MarketingTab() {
                     </Field>
                 ) : null}
             </AccordionSection>
+
+            <AccordionSection
+                title="고급 설정"
+                desc="사이트 설명 · 추가 스크립트"
+                enabled={s.enabled.advanced}
+                onToggle={(v) => updateEnabled("advanced", v)}
+            >
+                <Field label="사이트 설명" hint="네이버 · 구글 검색 결과에 표시되는 소개 문구">
+                    <textarea
+                        rows={3}
+                        className="input-base w-full"
+                        value={s.siteDescription}
+                        onChange={(e) => update("siteDescription", e.target.value)}
+                        placeholder="사이트를 소개하는 짧은 문구를 입력하세요"
+                    />
+                </Field>
+                <Field label="추가 스크립트" hint="구글 애널리틱스 · 메타 픽셀 등 추적 코드">
+                    <textarea
+                        rows={4}
+                        className="input-base w-full font-mono text-xs"
+                        value={s.additionalScript}
+                        onChange={(e) => update("additionalScript", e.target.value)}
+                        placeholder="<script>...</script>"
+                    />
+                </Field>
+            </AccordionSection>
         </>
     );
 }

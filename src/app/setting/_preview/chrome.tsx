@@ -2,7 +2,7 @@
 
 import { MouseEvent } from "react";
 import { MenuItem, Settings, SubPage } from "../types";
-import { clampPct, fontFamilyOf, menuHref, parsePxOr } from "../lib";
+import { clampPct, menuHref, parsePxOr } from "../lib";
 import { isLightColor } from "../color";
 
 export function PreviewHeader({
@@ -310,11 +310,14 @@ export function FooterBlock({
         footer.phone ? `대표번호: ${footer.phone}` : null,
     ].filter(Boolean);
     if (items.length === 0) return null;
+    // 글씨체는 지정하지 않음 → 미리보기 프레임의 사이트 글씨체(s.font) 상속.
+    const bg = footer.bgColor || "#F8FAFC";
+    const fg = footer.textColor || "#64748B";
     return (
         <div
             data-focus-target="footer"
-            className={`${pc ? "px-8 py-8 text-xs" : "px-4 py-5 text-[11px]"} text-slate-500 text-center bg-slate-50`}
-            style={{ fontFamily: fontFamilyOf(footer.font) }}
+            className={`${pc ? "px-8 py-8 text-xs" : "px-4 py-5 text-[11px]"} text-center`}
+            style={{ background: bg, color: fg }}
         >
             <div className={pc ? "space-x-3" : "space-x-2"}>
                 {items.map((it, i) => (

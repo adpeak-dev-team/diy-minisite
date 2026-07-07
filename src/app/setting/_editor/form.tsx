@@ -63,7 +63,7 @@ export function FormSectionEditor({
                 />
             </div>
             {subjectType === "image" ? (
-                <Field label="제목 이미지" hint="양식 박스 위에 표시될 안내 이미지 (formSubjectImg)">
+                <Field label="제목 이미지" hint="양식 박스 위에 표시될 안내 이미지예요">
                     <ImageUploader
                         value={sec.image}
                         onChange={(v) => onPatch({ image: v })}
@@ -88,7 +88,7 @@ export function FormSectionEditor({
             ) : null}
             {variant !== "custom" ? (
                 <div className="grid grid-cols-2 gap-3">
-                    <Field label="성명 라벨">
+                    <Field label="성명 항목 제목" hint="입력칸 위에 보이는 항목 이름이에요">
                         <input
                             type="text"
                             className="input-base w-full"
@@ -99,7 +99,7 @@ export function FormSectionEditor({
                             }
                         />
                     </Field>
-                    <Field label="성명 placeholder">
+                    <Field label="성명 기본값" hint="입력칸 안에 흐리게 보이는 예시 문구예요">
                         <input
                             type="text"
                             className="input-base w-full"
@@ -110,7 +110,7 @@ export function FormSectionEditor({
                             }
                         />
                     </Field>
-                    <Field label="연락처 라벨">
+                    <Field label="연락처 항목 제목" hint="입력칸 위에 보이는 항목 이름이에요">
                         <input
                             type="text"
                             className="input-base w-full"
@@ -121,7 +121,7 @@ export function FormSectionEditor({
                             }
                         />
                     </Field>
-                    <Field label="연락처 안내">
+                    <Field label="연락처 입력 안내" hint="연락처 입력 형식을 알려주는 문구예요">
                         <input
                             type="text"
                             className="input-base w-full"
@@ -136,7 +136,7 @@ export function FormSectionEditor({
             ) : null}
             {variant === "visit" ? (
                 <div className="grid grid-cols-2 gap-3">
-                    <Field label="방문일 라벨">
+                    <Field label="방문일 항목 제목">
                         <input
                             type="text"
                             className="input-base w-full"
@@ -147,7 +147,7 @@ export function FormSectionEditor({
                             }
                         />
                     </Field>
-                    <Field label="방문시간 라벨">
+                    <Field label="방문시간 항목 제목">
                         <input
                             type="text"
                             className="input-base w-full"
@@ -239,7 +239,7 @@ export function FormSectionEditor({
                         ]}
                     />
                 </Field>
-                <Field label="제출 버튼 컨텐츠">
+                <Field label="제출 버튼 종류" hint="버튼을 글자로 보일지 이미지로 보일지 선택하세요">
                     <RadioPill
                         value={data.buttonType ?? "text"}
                         onChange={(v) => patchData({ buttonType: v })}
@@ -418,7 +418,7 @@ function CustomFieldsEditor({
                                 <input
                                     type="text"
                                     className="input-base flex-1 text-xs"
-                                    placeholder="라벨"
+                                    placeholder="항목 제목"
                                     value={f.label}
                                     onChange={(e) =>
                                         patch(f.id, { label: e.target.value })
@@ -442,7 +442,7 @@ function CustomFieldsEditor({
                                 <input
                                     type="text"
                                     className="input-base w-full text-xs"
-                                    placeholder="placeholder (선택)"
+                                    placeholder="입력칸 기본값 (선택)"
                                     value={f.placeholder}
                                     onChange={(e) =>
                                         patch(f.id, {

@@ -132,6 +132,8 @@ export type SubPage = {
     slug: string;
     title: string;
     sections: Section[];
+    // 이 페이지 본문(섹션) 글씨체. 미지정이면 사이트 기본 글씨체(s.font) 사용.
+    font?: FontKey;
     // 하부메뉴 (2단 트리). 최상위 SubPage 만 children 을 가질 수 있고,
     // 자식 SubPage 는 children 을 가지지 않음 (손자 금지 - 편집 UI에서 강제).
     children?: SubPage[];
@@ -187,6 +189,7 @@ export type EnabledFlags = {
     countdown: boolean;
     quickConnect: boolean;
     location: boolean;
+    advanced: boolean;       // 고급 설정(사이트 설명 · 추가 스크립트) 사용 여부
     // 하부메뉴 이동 UI 스타일. 두 개 독립 토글 — 둘 다 켜지면 grid 와 hover 둘 다 노출.
     childNavGrid: boolean;   // 부모 페이지 상단(헤더 아래)에 자식 목록을 grid 로 노출
     childNavHover: boolean;  // 헤더 메뉴 hover 시 아래로 슬라이드 드롭다운
@@ -219,6 +222,9 @@ export type Settings = {
     domain: string;
     headerStyle: HeaderStyle;
     font: FontKey;
+    // 메인 페이지 본문(섹션) 글씨체. 미지정이면 사이트 기본 글씨체(font) 사용.
+    // 서브페이지는 SubPage.font 로 각각 지정. (헤더·메뉴·하단은 항상 font 적용)
+    contentFont?: FontKey;
     siteDescription: string;
     additionalScript: string;
     header: {
@@ -287,6 +293,8 @@ export type Settings = {
         bizNumber: string;
         phone: string;
         font: FontKey;
+        bgColor: string;
+        textColor: string;
     };
     privacyPolicy: string;
     completeMessage: string;
@@ -467,6 +475,8 @@ export const initialSettings: Settings = {
         bizNumber: "",
         phone: "",
         font: "pretendard",
+        bgColor: "",
+        textColor: "",
     },
     privacyPolicy: "",
     completeMessage: "",
@@ -481,6 +491,7 @@ export const initialSettings: Settings = {
         countdown: false,
         quickConnect: false,
         location: false,
+        advanced: false,
         childNavGrid: true,
         childNavHover: false,
     },

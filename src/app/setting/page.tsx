@@ -111,6 +111,21 @@ function SettingPageInner() {
         [s.subPages],
     );
 
+    // 탭 전환 시 편집 대상 페이지 맞춤:
+    // - 메인페이지 탭 → 메인(null) 으로 (미리보기도 메인 표시)
+    // - 서브페이지 탭 → 선택된 서브페이지가 없으면 첫 서브페이지 자동 선택
+    const handleTabChange = useCallback(
+        (tab: TabKey) => {
+            if (tab === "main") {
+                setCurrentPageId(null);
+            } else if (tab === "subpages" && !currentPageId && s.subPages.length) {
+                selectPage(s.subPages[0].id);
+            }
+            setActiveTab(tab);
+        },
+        [currentPageId, s.subPages, selectPage],
+    );
+
     // 서버 baseline (query) ↔ 편집중 s (로컬) 분리.
     // 자동 refetch 는 QueryProvider 기본설정으로 꺼져 있어 s 가 덮어써질 일 없음.
     const settingsQuery = useSettings(domain);
@@ -224,7 +239,8 @@ function SettingPageInner() {
         setPane("editor"); // 모바일: 미리보기 → 편집 창으로 전환
         if (part.startsWith("section:")) {
             const id = part.slice("section:".length);
-            setActiveTab("structure");
+            // 현재 미리보기가 메인이면 '메인페이지' 탭, 서브페이지면 '서브페이지' 탭.
+            setActiveTab(currentPageId ? "subpages" : "main");
             focusNonceRef.current += 1;
             // 콘텐츠 아코디언은 기본 닫힘 상태이므로 먼저 열어야 섹션이 렌더된다.
             // (focusScroll=false 라 아코디언 강조는 생략되고, 아래 pendingFocus 가
@@ -244,7 +260,7 @@ function SettingPageInner() {
         if (part === "footer" || part === "bottom")
             return focusAnchor(part, "footer");
         if (part === "countdown") return focusAnchor("countdown", "fixed");
-    }, []);
+    }, [currentPageId]);
 
     // 클릭한 섹션이 페이지 구성 탭에 렌더될 때까지 재시도하며 스크롤 + 강조.
     useEffect(() => {
@@ -419,9 +435,9 @@ function SettingPageInner() {
                         </div>
                         <EditorTabs
                             activeTab={activeTab}
-                            onChange={setActiveTab}
+                            onChange={handleTabChange}
                         />
-                        {activeTab === "structure" ? (
+                        {activeTab === "subpages" ? (
                             <PageSelector
                                 subPages={s.subPages}
                                 currentPageId={currentPageId}

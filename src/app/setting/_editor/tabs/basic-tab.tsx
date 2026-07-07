@@ -21,10 +21,34 @@ function anyFormExists(s: Settings): boolean {
 }
 
 export function InfoSubTab() {
-    const { s, update, updateInfo, updateEnabled } = useSettings();
+    const { s, update, updateInfo, updateHeader, updateEnabled } = useSettings();
+
+    // === 공통 정보 통합 입력 ===
+    // 여러 기능에 흩어져 있던 값을 여기서 한 번에 입력하면 관련 필드에 모두 반영된다.
+    const setCompanyName = (v: string) => {
+        updateInfo("siteName", v);
+        update("footer", { ...s.footer, company: v });
+    };
+    const setRepPhone = (v: string) => {
+        const tel = v.replace(/[^0-9+]/g, "");
+        update("footer", { ...s.footer, phone: v });
+        updateHeader("phoneNumber", v);
+        update("quickConnect", {
+            ...s.quickConnect,
+            sms: { ...s.quickConnect.sms, phone: v },
+        });
+        update("bottomFixed", {
+            ...s.bottomFixed,
+            phone: { ...s.bottomFixed.phone, link: tel ? `tel:${tel}` : "" },
+        });
+    };
+
     return (
         <>
-            <AccordionSection title="사이트 기본 정보">
+            <AccordionSection
+                title="사이트 기본 정보"
+                desc="여러 기능에서 공통으로 쓰는 정보를 여기서 한 번에 입력하세요"
+            >
                 <Field label="사이트 주소 (도메인)">
                     <div className="flex items-center gap-2">
                         <input
@@ -46,14 +70,56 @@ export function InfoSubTab() {
                         </button>
                     </div>
                 </Field>
-                <Field label="사이트 이름">
+                <Field label="상호명" hint="사이트 이름과 하단 사업자 정보에 함께 적용됩니다">
                     <input
                         type="text"
                         className="input-base w-full"
                         value={s.info.siteName}
-                        onChange={(e) => updateInfo("siteName", e.target.value)}
+                        onChange={(e) => setCompanyName(e.target.value)}
                     />
                 </Field>
+                <Field
+                    label="대표 전화번호"
+                    hint="하단 대표번호 · 상단 전화 · 모바일 하단 · 문자 발송에 모두 적용됩니다"
+                >
+                    <input
+                        type="tel"
+                        inputMode="tel"
+                        className="input-base w-full"
+                        placeholder="010-0000-0000"
+                        value={s.footer.phone}
+                        onChange={(e) => setRepPhone(e.target.value)}
+                    />
+                </Field>
+                <div className="grid grid-cols-2 gap-3">
+                    <Field label="대표자명">
+                        <input
+                            type="text"
+                            className="input-base w-full"
+                            value={s.footer.ceo}
+                            onChange={(e) =>
+                                update("footer", {
+                                    ...s.footer,
+                                    ceo: e.target.value,
+                                })
+                            }
+                        />
+                    </Field>
+                    <Field label="사업자등록번호">
+                        <input
+                            type="text"
+                            className="input-base w-full"
+                            placeholder="000-00-00000"
+                            value={s.footer.bizNumber}
+                            onChange={(e) =>
+                                update("footer", {
+                                    ...s.footer,
+                                    bizNumber: e.target.value,
+                                })
+                            }
+                        />
+                    </Field>
+                </div>
                 <Field label="상담 접수 제목" hint="상담 신청이 들어올 때 관리자에게 보이는 제목">
                     <input
                         type="text"
@@ -62,42 +128,22 @@ export function InfoSubTab() {
                         onChange={(e) => updateInfo("dbTitle", e.target.value)}
                     />
                 </Field>
-                <Field label="사이트 글씨체" hint="메뉴 · 본문 · 신청폼 등 사이트 전체에 적용됩니다">
+                <Field
+                    label="사이트 글씨체"
+                    hint="메뉴 · 상단 · 하단에 적용됩니다 (각 페이지 본문 글씨체는 ‘페이지 구성’에서 따로 지정)"
+                >
                     <FontSelect
                         value={s.font}
                         onChange={(v) => update("font", v)}
                     />
                 </Field>
                 <Field
-                    label="링크 공유 이미지"
+                    label="링크 공유 이미지 (명함 이미지)"
                     hint="카카오톡 · 문자 · SNS로 링크를 보낼 때 함께 뜨는 대표 이미지(썸네일)예요"
                 >
                     <ImageUploader
                         value={s.info.businessCardImage}
                         onChange={(v) => updateInfo("businessCardImage", v)}
-                    />
-                </Field>
-            </AccordionSection>
-
-            <AccordionSection title="고급 설정" desc="사이트 설명 · 추가 스크립트">
-                <Field label="사이트 설명" hint="네이버 · 구글 검색 결과에 표시되는 소개 문구">
-                    <textarea
-                        rows={3}
-                        className="input-base w-full"
-                        value={s.siteDescription}
-                        onChange={(e) => update("siteDescription", e.target.value)}
-                        placeholder="사이트를 소개하는 짧은 문구를 입력하세요"
-                    />
-                </Field>
-                <Field label="추가 스크립트" hint="구글 애널리틱스 · 메타 픽셀 등 추적 코드">
-                    <textarea
-                        rows={4}
-                        className="input-base w-full font-mono text-xs"
-                        value={s.additionalScript}
-                        onChange={(e) =>
-                            update("additionalScript", e.target.value)
-                        }
-                        placeholder="<script>...</script>"
                     />
                 </Field>
             </AccordionSection>
@@ -271,20 +317,8 @@ export function HeaderSubTab() {
                         ) : null}
                     </div>
                     {s.header.phoneImage ? (
-                        <div className="flex items-center gap-1.5 mt-2">
-                            <span className="text-xs text-slate-500 shrink-0">
-                                전화번호
-                            </span>
-                            <input
-                                type="tel"
-                                inputMode="tel"
-                                className="input-base flex-1 text-xs"
-                                placeholder="01012345678"
-                                value={s.header.phoneNumber}
-                                onChange={(e) =>
-                                    updateHeader("phoneNumber", e.target.value)
-                                }
-                            />
+                        <div className="text-[11px] text-slate-400 mt-2">
+                            클릭 시 <b>기본정보</b>의 대표 전화번호로 연결됩니다.
                         </div>
                     ) : null}
                 </Field>
@@ -385,71 +419,32 @@ export function FooterSubTab() {
     return (
         <AccordionSection
             title="하단 스타일"
-            desc="상호명 / 대표 / 사업자번호 / 대표번호"
+            desc="하단 배경 · 글자 색상"
             anchor="footer"
         >
+            <div className="mb-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[12px] text-blue-700 leading-relaxed">
+                상호명 · 대표자 · 사업자등록번호 · 대표번호는 <b>기본정보</b> 탭에서
+                한 번에 입력하면 하단에 자동으로 표시됩니다. 글씨체는{" "}
+                <b>기본정보 · 사이트 글씨체</b>를 따릅니다.
+            </div>
             <div className="grid grid-cols-2 gap-3">
-                <Field label="상호명">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        value={s.footer.company}
-                        onChange={(e) =>
-                            update("footer", {
-                                ...s.footer,
-                                company: e.target.value,
-                            })
+                <Field label="배경 색상">
+                    <ColorPicker
+                        value={s.footer.bgColor}
+                        onChange={(v) =>
+                            update("footer", { ...s.footer, bgColor: v })
                         }
                     />
                 </Field>
-                <Field label="대표">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        value={s.footer.ceo}
-                        onChange={(e) =>
-                            update("footer", {
-                                ...s.footer,
-                                ceo: e.target.value,
-                            })
-                        }
-                    />
-                </Field>
-                <Field label="사업자등록번호">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        placeholder="000-00-00000"
-                        value={s.footer.bizNumber}
-                        onChange={(e) =>
-                            update("footer", {
-                                ...s.footer,
-                                bizNumber: e.target.value,
-                            })
-                        }
-                    />
-                </Field>
-                <Field label="대표번호">
-                    <input
-                        type="text"
-                        className="input-base w-full"
-                        placeholder="02-0000-0000"
-                        value={s.footer.phone}
-                        onChange={(e) =>
-                            update("footer", {
-                                ...s.footer,
-                                phone: e.target.value,
-                            })
+                <Field label="글자 색상">
+                    <ColorPicker
+                        value={s.footer.textColor}
+                        onChange={(v) =>
+                            update("footer", { ...s.footer, textColor: v })
                         }
                     />
                 </Field>
             </div>
-            <Field label="폰트">
-                <FontSelect
-                    value={s.footer.font}
-                    onChange={(v) => update("footer", { ...s.footer, font: v })}
-                />
-            </Field>
         </AccordionSection>
     );
 }
@@ -511,8 +506,8 @@ export function FixedSubTab() {
                         />
                     </div>
                 </Field>
-                <Field label="문자 전화번호">
-                    <div className="flex items-center gap-2">
+                <Field label="문자 보내기" hint="대표 전화번호로 발송됩니다 (기본정보에서 변경)">
+                    <label className="flex items-center gap-2 cursor-pointer">
                         <Toggle
                             on={s.quickConnect.sms.enabled}
                             onChange={(v) =>
@@ -522,22 +517,10 @@ export function FixedSubTab() {
                                 })
                             }
                         />
-                        <input
-                            type="text"
-                            className="input-base flex-1"
-                            placeholder="01012345678"
-                            value={s.quickConnect.sms.phone}
-                            onChange={(e) =>
-                                update("quickConnect", {
-                                    ...s.quickConnect,
-                                    sms: {
-                                        ...s.quickConnect.sms,
-                                        phone: e.target.value,
-                                    },
-                                })
-                            }
-                        />
-                    </div>
+                        <span className="text-sm text-slate-600">
+                            문자 버튼 사용
+                        </span>
+                    </label>
                 </Field>
                 <Field label="문자내용">
                     <textarea

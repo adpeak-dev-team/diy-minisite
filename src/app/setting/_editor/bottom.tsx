@@ -47,6 +47,7 @@ export function BottomFixedEditor({
                 onChange={(phone) => onChange({ ...value, phone })}
                 enabledCount={enabledCount(value)}
                 onHeightChange={(height) => onChange({ ...value, height })}
+                linkManaged
             />
             <BottomSlotEditor
                 label="상담 바로가기 슬롯"
@@ -77,6 +78,7 @@ function BottomSlotEditor({
     enabledCount: count,
     onHeightChange,
     allowFormShortcut = false,
+    linkManaged = false,
 }: {
     label: string;
     slot: Settings["bottomFixed"]["phone"];
@@ -84,6 +86,8 @@ function BottomSlotEditor({
     enabledCount: number;
     onHeightChange: (height: string) => void;
     allowFormShortcut?: boolean;
+    // true 면 링크를 기본정보의 대표 전화번호로 자동 연결 — 수동 링크 입력 숨김.
+    linkManaged?: boolean;
 }) {
     const patch = (p: Partial<Settings["bottomFixed"]["phone"]>) =>
         onChange({ ...slot, ...p });
@@ -170,15 +174,24 @@ function BottomSlotEditor({
                         </Field>
                     ) : null}
                     {(slot.linkType ?? "url") === "url" ? (
-                        <Field label="링크" hint="tel:01012345678 / https://...">
-                            <input
-                                type="text"
-                                className="input-base w-full font-mono text-xs"
-                                placeholder="tel:01012345678"
-                                value={slot.link}
-                                onChange={(e) => patch({ link: e.target.value })}
-                            />
-                        </Field>
+                        linkManaged ? (
+                            <Field label="링크">
+                                <div className="text-[11px] text-slate-400">
+                                    <b>기본정보</b>의 대표 전화번호로 자동
+                                    연결됩니다.
+                                </div>
+                            </Field>
+                        ) : (
+                            <Field label="링크" hint="tel:01012345678 / https://...">
+                                <input
+                                    type="text"
+                                    className="input-base w-full font-mono text-xs"
+                                    placeholder="tel:01012345678"
+                                    value={slot.link}
+                                    onChange={(e) => patch({ link: e.target.value })}
+                                />
+                            </Field>
+                        )
                     ) : null}
                 </>
             ) : null}
