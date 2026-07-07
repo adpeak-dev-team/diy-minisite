@@ -76,8 +76,15 @@ export function AccordionSection({
     const focus = useContext(EditorFocusContext);
     const rowRef = useRef<HTMLDivElement>(null);
 
+    // 사용자가 이 아코디언을 직접 "열었을 때"(닫힘→열림)만 미리보기를 해당
+    // 섹션으로 스크롤한다. 최초 마운트(탭 전환 등, defaultOpen 이면 open=true 로 시작)
+    // 에는 스크롤하지 않는다 — 탭만 눌러도 미리보기가 튀는 문제 방지.
+    const prevOpenRef = useRef(open);
     useEffect(() => {
+        const wasOpen = prevOpenRef.current;
+        prevOpenRef.current = open;
         if (!open || !autoFocus || !focusTarget) return;
+        if (wasOpen) return; // 이미 열려 있던 상태(마운트/탭전환) → 스크롤 안 함
         const el = document.querySelector(
             `[data-focus-target="${focusTarget}"]`,
         );
