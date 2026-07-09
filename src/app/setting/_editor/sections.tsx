@@ -42,6 +42,13 @@ import { useImageLifecycle } from "./image-lifecycle";
 
 const SECTION_TYPES = Object.keys(SECTION_TYPE_LABEL) as SectionType[];
 
+// 네이티브 select 화살표가 오른쪽 끝에 바짝 붙지 않도록 커스텀 chevron 을 그린다.
+// appearance-none + 이 배경 + pr-7 + bg-position 으로 화살표에 여백을 준다.
+const CHEVRON_BG =
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")";
+const SELECT_CHEVRON =
+    "appearance-none bg-white bg-no-repeat pr-7 bg-position-[right_0.5rem_center]";
+
 export function SectionsEditor({
     sections,
     onChange,
@@ -121,7 +128,7 @@ export function SectionsEditor({
                     items={sections.map((s) => s.id)}
                     strategy={verticalListSortingStrategy}
                 >
-                    <ul className="space-y-2 mb-3">
+                    <ul data-guide="sections-list" className="space-y-2 mb-3">
                         {sections.map((sec, idx) => (
                             <SectionItem
                                 key={sec.id}
@@ -145,7 +152,10 @@ export function SectionsEditor({
             </DndContext>
 
             {picking ? (
-                <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-3">
+                <div
+                    data-guide="content-picker"
+                    className="rounded-xl border border-blue-200 bg-blue-50/40 p-3"
+                >
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium text-slate-700">
                             무엇을 추가할까요?
@@ -164,6 +174,7 @@ export function SectionsEditor({
                 <div className="grid grid-cols-2 gap-2">
                     <button
                         type="button"
+                        data-guide="add-content"
                         className="btn btn-secondary w-full"
                         onClick={() => setPicking(true)}
                     >
@@ -221,7 +232,6 @@ function SectionItem({
     onPatch: (p: Partial<Section>) => void;
     confirmDelete: () => Promise<boolean>;
 }) {
-    const [showAdvanced, setShowAdvanced] = useState(false);
     const {
         attributes,
         listeners,
@@ -244,7 +254,7 @@ function SectionItem({
                 isDragging ? "shadow-lg z-10 relative" : ""
             }`}
         >
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
                 <button
                     type="button"
                     {...attributes}
@@ -258,17 +268,31 @@ function SectionItem({
                 <span className="text-[11px] px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded shrink-0">
                     {idx + 1}
                 </span>
-                <span className="text-xl leading-none shrink-0">
-                    {SECTION_TYPE_ICON[sec.type]}
-                </span>
-                <span className="flex-1 min-w-0 text-sm font-semibold text-slate-800 truncate">
-                    {SECTION_TYPE_LABEL[sec.type]}
-                    {sec.title ? (
-                        <span className="ml-1 text-xs font-normal text-slate-400">
-                            · {sec.title}
-                        </span>
-                    ) : null}
-                </span>
+                <select
+                    className={`input-base text-xs shrink-0 w-auto ${SELECT_CHEVRON}`}
+                    style={{ backgroundImage: CHEVRON_BG }}
+                    value={sec.type}
+                    onChange={(e) =>
+                        onPatch({ type: e.target.value as SectionType })
+                    }
+                    title="유형 변경"
+                    aria-label="유형 변경"
+                >
+                    {SECTION_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                            {SECTION_TYPE_ICON[t]} {SECTION_TYPE_LABEL[t]}
+                        </option>
+                    ))}
+                </select>
+                <input
+                    type="text"
+                    className="input-base text-xs flex-1 min-w-24"
+                    value={sec.title}
+                    onChange={(e) => onPatch({ title: e.target.value })}
+                    placeholder="이름 (관리용)"
+                    title="이름 (관리용, 사이트엔 안 보임)"
+                    aria-label="이름 (관리용)"
+                />
                 <ListRowActions
                     items={sections}
                     index={idx}
@@ -282,55 +306,7 @@ function SectionItem({
             </div>
 
             <div className="mt-2 pt-2 border-t border-slate-100">
-                <button
-                    type="button"
-                    className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1"
-                    onClick={() => setShowAdvanced((v) => !v)}
-                >
-                    <span className="text-[10px]">
-                        {showAdvanced ? "▾" : "▸"}
-                    </span>
-                    옵션
-                </button>
-                {showAdvanced ? (
-                    <div className="mt-2 space-y-3 bg-slate-50 rounded-lg p-3">
-                        <label className="block">
-                            <span className="block text-xs text-slate-500 mb-1">
-                                이름 (관리용, 사이트엔 안 보임)
-                            </span>
-                            <input
-                                type="text"
-                                className="input-base w-full text-xs"
-                                value={sec.title}
-                                onChange={(e) =>
-                                    onPatch({ title: e.target.value })
-                                }
-                                placeholder="예: 첫 번째 사진"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="block text-xs text-slate-500 mb-1">
-                                유형 변경
-                            </span>
-                            <select
-                                className="input-base text-xs w-full"
-                                value={sec.type}
-                                onChange={(e) =>
-                                    onPatch({
-                                        type: e.target.value as SectionType,
-                                    })
-                                }
-                            >
-                                {SECTION_TYPES.map((t) => (
-                                    <option key={t} value={t}>
-                                        {SECTION_TYPE_LABEL[t]}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                        <SectionEffects sec={sec} onPatch={onPatch} />
-                    </div>
-                ) : null}
+                <SectionEffects sec={sec} onPatch={onPatch} />
             </div>
         </li>
     );
@@ -348,7 +324,8 @@ function SectionEffects({
             <div className="flex items-center gap-1.5">
                 <span className="text-xs text-slate-500">나타나는 효과</span>
                 <select
-                    className="input-base text-xs"
+                    className={`input-base text-xs ${SELECT_CHEVRON}`}
+                    style={{ backgroundImage: CHEVRON_BG }}
                     value={sec.animation ?? "none"}
                     onChange={(e) =>
                         onPatch({
@@ -369,7 +346,8 @@ function SectionEffects({
                 <div className="flex items-center gap-1.5">
                     <span className="text-xs text-slate-500">이미지 꾸미기</span>
                     <select
-                        className="input-base text-xs"
+                        className={`input-base text-xs ${SELECT_CHEVRON}`}
+                        style={{ backgroundImage: CHEVRON_BG }}
                         value={sec.effect ?? "none"}
                         onChange={(e) =>
                             onPatch({ effect: e.target.value as ImageEffect })

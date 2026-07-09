@@ -57,6 +57,7 @@ export function EditorTabs({
                             key={t.key}
                             type="button"
                             role="tab"
+                            data-guide={`tab-${t.key}`}
                             aria-selected={active}
                             onClick={() => onChange(t.key)}
                             className={`px-3 py-2 text-xs font-medium whitespace-nowrap border-b-2 transition ${

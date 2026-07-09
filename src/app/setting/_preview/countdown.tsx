@@ -57,6 +57,7 @@ export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }
         <div
             data-edit="countdown"
             data-focus-target="countdown"
+            data-guide="pv-countdown"
             className={padCls}
             style={{
                 background: bg,
@@ -94,6 +95,7 @@ export function CountdownFloating({ s, pc = false }: { s: Settings; pc?: boolean
     return (
         <div
             data-focus-target="countdown"
+            data-guide="pv-countdown"
             className="absolute left-3 z-20 rounded-full shadow-lg flex flex-col items-center justify-center text-center"
             style={{
                 background: bg,

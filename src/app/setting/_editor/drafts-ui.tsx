@@ -133,11 +133,16 @@ export function DraftsMenu({
     onSave,
     onRestore,
     onDelete,
+    autosaveAt,
+    onRestoreAutosave,
 }: {
     drafts: Draft[];
     onSave: () => void;
     onRestore: (d: Draft) => void;
     onDelete: (id: string) => void;
+    // 복원 가능한 자동저장본이 있으면 그 시각(없으면 null). 팝업 대신 이 라인에 노출.
+    autosaveAt?: number | null;
+    onRestoreAutosave?: () => void;
 }) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -170,6 +175,16 @@ export function DraftsMenu({
             >
                 불러오기 ({drafts.length})
             </button>
+            {onRestoreAutosave && autosaveAt != null ? (
+                <button
+                    type="button"
+                    className="btn btn-ghost btn-sm text-blue-700 shrink-0"
+                    onClick={onRestoreAutosave}
+                    title={`${formatStamp(autosaveAt)} 기준 자동저장본을 불러옵니다`}
+                >
+                    자동저장 복원
+                </button>
+            ) : null}
 
             {open ? (
                 <div className="absolute bottom-full right-0 mb-2 w-80 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg p-2 z-20">

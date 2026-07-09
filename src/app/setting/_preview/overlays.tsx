@@ -31,6 +31,7 @@ export function BottomFixedBar({ s }: { s: Settings }) {
     return (
         <div
             data-focus-target="bottom"
+            data-guide="pv-bottom"
             className="absolute inset-x-0 bottom-0 z-20 flex border-t border-slate-200"
             style={{ height, fontFamily: fontFamilyOf(s.bottomFixed.font) }}
         >
@@ -117,6 +118,7 @@ export function QuickConnectButtons({
 
     return (
         <div
+            data-guide="pv-quick"
             className="absolute right-3 z-20 flex flex-col gap-2.5"
             style={{ bottom: `${bottomOffset + 16}px` }}
         >
@@ -140,34 +142,25 @@ export function QuickConnectButtons({
 export function FixedImageFloating({
     src,
     bottomOffset,
-    link = "",
-    linkType = "url",
 }: {
     src: string;
     bottomOffset: number;
     link?: string;
     linkType?: "url" | "form";
 }) {
-    const handleClick = () => {
-        if (linkType === "form") {
-            scrollToLastForm();
-        } else if (link) {
-            window.location.href = link;
-        }
-    };
-    const interactive = linkType === "form" || !!link;
+    // 미리보기 전용 — 클릭하면 실제 이동 대신 편집기의 '우측 고정 이미지'로 포커스된다
+    // (data-edit 위임 클릭). button 이면 위임에서 무시되므로 div 로 렌더.
     return (
-        <button
-            type="button"
-            onClick={interactive ? handleClick : undefined}
-            disabled={!interactive}
+        <div
+            data-edit="fiximage"
+            data-guide="pv-fiximage"
             aria-label="우측 고정 이미지"
-            className="absolute right-3 z-20 w-15 h-15 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white hover:scale-105 active:scale-95 transition disabled:cursor-default disabled:hover:scale-100"
+            className="absolute right-3 z-20 w-15 h-15 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer hover:scale-105 active:scale-95 transition"
             style={{ bottom: `${bottomOffset + 16}px` }}
         >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt="" className="w-full h-full object-cover" />
-        </button>
+        </div>
     );
 }
 
@@ -231,6 +224,8 @@ export function PopupOverlay({
     // 배경 어둡힘 / 스크롤 잠금 없이 단순 fixed-스타일 카드로만 노출.
     return (
         <div
+            data-edit="popup"
+            data-guide="pv-popup"
             className={`absolute left-1/2 -translate-x-1/2 z-30 ${
                 pc ? "top-12 max-w-md w-[70%]" : "top-8 max-w-xs w-[80%]"
             }`}

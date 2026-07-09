@@ -1,13 +1,7 @@
 "use client";
 
-import { AccordionSection, Field } from "../../widgets";
-import {
-    FONT_OPTIONS,
-    FontKey,
-    patchSubPage,
-    Section,
-    SubPage,
-} from "../../types";
+import { AccordionSection } from "../../widgets";
+import { Section, SubPage } from "../../types";
 import { SectionsEditor } from "../sections";
 import { useSettings } from "./context";
 
@@ -25,7 +19,7 @@ export function StructureTab({
     pageSections: Section[];
     setPageSections: (next: Section[]) => void;
 }) {
-    const { s, update, updateEnabled } = useSettings();
+    const { s, updateEnabled } = useSettings();
 
     const isMain = scope === "main";
 
@@ -42,24 +36,6 @@ export function StructureTab({
     }
 
     const isTopSubPage = !!currentSubPage && !parentSubPage;
-
-    // 이 페이지 본문 글씨체 (미지정이면 사이트 기본 글씨체 사용).
-    // 메인은 s.contentFont, 서브페이지는 SubPage.font 에 저장.
-    const pageFont = isMain ? s.contentFont : currentSubPage?.font;
-    const setPageFont = (v: string) => {
-        const font = (v || undefined) as FontKey | undefined;
-        if (isMain) {
-            update("contentFont", font);
-        } else if (currentSubPage) {
-            update(
-                "subPages",
-                patchSubPage(s.subPages, currentSubPage.id, (p) => ({
-                    ...p,
-                    font,
-                })),
-            );
-        }
-    };
 
     // 최상위 서브페이지가 childrenEnabled=true 면 컨테이너로만 동작 → 자체 컨텐츠 없음.
     // (하위 페이지 추가/삭제/토글은 '메뉴 · 페이지 관리' 탭에서 관리한다.)
@@ -91,27 +67,6 @@ export function StructureTab({
             anchor="sections"
             focusScroll={false}
         >
-            <Field
-                label="이 페이지 글씨체"
-                hint="비워두면 사이트 기본 글씨체(기본정보)를 따릅니다"
-            >
-                <select
-                    className="input-base w-full appearance-none bg-white pr-9 cursor-pointer"
-                    value={pageFont ?? ""}
-                    onChange={(e) => setPageFont(e.target.value)}
-                >
-                    <option value="">사이트 기본 글씨체 사용</option>
-                    {FONT_OPTIONS.map((o) => (
-                        <option
-                            key={o.key}
-                            value={o.key}
-                            style={{ fontFamily: o.family }}
-                        >
-                            {o.label}
-                        </option>
-                    ))}
-                </select>
-            </Field>
             <SectionsEditor sections={pageSections} onChange={setPageSections} />
         </AccordionSection>
     );

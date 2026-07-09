@@ -20,6 +20,7 @@ export function MarketingTab() {
                 desc="첫 방문 시 표시되는 팝업"
                 enabled={s.enabled.popup}
                 onToggle={(v) => updateEnabled("popup", v)}
+                anchor="popup"
             >
                 <ImageUploader
                     value={s.popupImage}
@@ -141,6 +142,7 @@ export function MarketingTab() {
                 desc="사이트 설명 · 추가 스크립트"
                 enabled={s.enabled.advanced}
                 onToggle={(v) => updateEnabled("advanced", v)}
+                anchor="advanced"
             >
                 <Field label="사이트 설명" hint="네이버 · 구글 검색 결과에 표시되는 소개 문구">
                     <textarea

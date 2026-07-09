@@ -120,8 +120,10 @@ export function AccordionSection({
     }, [focus, anchor, focusScroll]);
 
     return (
-        <div ref={rowRef} className="accordion-row">
+        <div ref={rowRef} className="accordion-row" data-guide={anchor}>
             <div
+                // 열렸을 때는 헤더 아래 패딩을 없애 제목을 구분선에 붙임.
+                // → 본문(p-4)의 위/아래 여백이 콘텐츠 기준 대칭으로 보인다.
                 className="accordion-head"
                 onClick={() => setOpen((o) => !o)}
             >
@@ -156,7 +158,7 @@ export function AccordionSection({
                     />
                 </svg>
             </div>
-            {open ? <div className="accordion-body">{children}</div> : null}
+            {open ? <div className="accordion-body px-4 py-4">{children}</div> : null}
         </div>
     );
 }

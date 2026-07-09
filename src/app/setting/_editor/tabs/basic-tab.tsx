@@ -48,6 +48,7 @@ export function InfoSubTab() {
             <AccordionSection
                 title="사이트 기본 정보"
                 desc="여러 기능에서 공통으로 쓰는 정보를 여기서 한 번에 입력하세요"
+                anchor="info-basic"
             >
                 <Field label="사이트 주소 (도메인)">
                     <div className="flex items-center gap-2">
@@ -153,6 +154,7 @@ export function InfoSubTab() {
                 desc="주소를 입력하면 페이지 맨 아래에 지도가 표시됩니다"
                 enabled={s.enabled.location}
                 onToggle={(v) => updateEnabled("location", v)}
+                focusTarget="location"
                 anchor="location"
             >
                 <div className="mb-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[12px] text-blue-700 leading-relaxed">
@@ -206,6 +208,7 @@ export function HeaderSubTab() {
             desc="상단 영역 스타일, 로고, 전화번호 이미지"
             enabled={s.enabled.header}
             onToggle={(v) => updateEnabled("header", v)}
+            focusTarget="header"
             anchor="header"
         >
             <Field
@@ -338,6 +341,8 @@ export function MenuTab() {
             <AccordionSection
                 title="메뉴 · 페이지 관리"
                 desc={`페이지 ${s.subPages.length}개 · 상단 메뉴 ${s.header.menus.length}개`}
+                focusTarget="submenu"
+                anchor="menu"
             >
                 <div className="flex items-center gap-2 mb-3">
                     <Toggle
@@ -420,6 +425,7 @@ export function FooterSubTab() {
         <AccordionSection
             title="하단 스타일"
             desc="하단 배경 · 글자 색상"
+            focusTarget="footer"
             anchor="footer"
         >
             <div className="mb-3 rounded-lg bg-blue-50 border border-blue-100 px-3 py-2 text-[12px] text-blue-700 leading-relaxed">
@@ -457,6 +463,7 @@ export function MobileBottomTab() {
             desc="모바일 화면에서만 맨 아래에 고정 표시되는 버튼 (전화 / 상담)"
             enabled={s.enabled.bottomFixed}
             onToggle={(v) => updateEnabled("bottomFixed", v)}
+            focusTarget="bottom"
             anchor="bottom"
         >
             <BottomFixedEditor
@@ -477,6 +484,7 @@ export function FixedSubTab() {
                 desc="카카오톡 · 문자 플로팅 버튼"
                 enabled={s.enabled.quickConnect}
                 onToggle={(v) => updateEnabled("quickConnect", v)}
+                anchor="quickconnect"
             >
                 <Field label="카카오톡 채널 URL">
                     <div className="flex items-center gap-2">
@@ -546,6 +554,7 @@ export function FixedSubTab() {
                 desc="페이지 우측 중간에 floating 표시되는 원형 이미지 (정사각형 권장)"
                 enabled={s.enabled.fixedImage}
                 onToggle={(v) => updateEnabled("fixedImage", v)}
+                anchor="fiximage"
             >
                 <Field label="우측 고정 이미지">
                     <ImageUploader

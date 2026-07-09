@@ -10,6 +10,7 @@ import {
 } from "./_editor/panel";
 import { Preview, PreviewMode } from "./_preview/preview";
 import { ModalProvider, useConfirm } from "./_ui/modal";
+import { GuideButton, GuideTour, GUIDE_SEEN_KEY } from "./_ui/guide";
 import { ToastProvider, useToast } from "./_ui/toast";
 import { initialSettings, Settings } from "./types";
 import {
@@ -26,11 +27,23 @@ import {
 import {
     AutosaveStatus,
     DraftsMenu,
-    RestoreBanner,
     useDrafts,
 } from "./_editor/drafts-ui";
 import { useSaveSettings, useSettings } from "@/service/setting";
 import { TEMPLATES } from "./templates";
+import { withGuideDemoExtras } from "./guide-demo";
+
+// 가이드가 단계별로 '하나씩' 켜고 끄는 데모 기능 토글들.
+// (header 는 항상 필요하므로 제외 — 여기 목록만 단계마다 초기화된다.)
+const GUIDE_FEATURE_FLAGS = [
+    "location",
+    "bottomFixed",
+    "quickConnect",
+    "fixedImage",
+    "popup",
+    "countdown",
+    "advanced",
+] as const;
 
 type LoadState =
     | { status: "idle" }
@@ -86,6 +99,41 @@ function SettingPageInner() {
     const [currentPageId, setCurrentPageId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>("info");
     const [pane, setPane] = useState<Pane>("editor");
+    const [guideOpen, setGuideOpen] = useState(false);
+    // 처음 방문 시 가이드를 자동으로 한 번 띄운다. 닫으면 플래그를 저장해 다시 뜨지 않음.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        try {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            if (!localStorage.getItem(GUIDE_SEEN_KEY)) setGuideOpen(true);
+        } catch {
+            /* localStorage 접근 불가 시 무시 */
+        }
+    }, []);
+    const closeGuide = useCallback(() => {
+        setGuideOpen(false);
+        try {
+            localStorage.setItem(GUIDE_SEEN_KEY, "1");
+        } catch {
+            /* 무시 */
+        }
+    }, []);
+    // 가이드를 열 때 편집 내용이 비어 있으면 시범용 예시 템플릿을 자동으로 채운다.
+    // 내용이 있으면 건드리지 않아 데이터 손실이 없고, 저장 전이라 실제 반영도 없다.
+    useEffect(() => {
+        if (!guideOpen) return;
+        if (s.sections.length > 0 || s.subPages.length > 0) return;
+        // 풀옵션(멀티페이지) 템플릿 — 위치·카운트다운·메뉴·하단바 등 기능이 켜진 상태라
+        // 가이드에서 각 기능이 실제로 작동하는 모습을 보여줄 수 있다.
+        const demo = TEMPLATES.find((t) => t.id === "multipage") ?? TEMPLATES[0];
+        if (!demo) return;
+        /* eslint-disable react-hooks/set-state-in-effect */
+        // 예시 이미지·마감일까지 채워 팝업·우측고정·카운트다운도 미리보기에 실제로 보이게.
+        setS({ ...withGuideDemoExtras(demo.build()), domain: s.domain });
+        setCurrentPageId(null);
+        /* eslint-enable react-hooks/set-state-in-effect */
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [guideOpen]);
     // 미리보기에서 클릭한 섹션을 페이지 구성 탭에서 스크롤·강조하기 위한 대기 상태.
     const [pendingFocus, setPendingFocus] = useState<{
         id: string;
@@ -260,6 +308,8 @@ function SettingPageInner() {
         if (part === "footer" || part === "bottom")
             return focusAnchor(part, "footer");
         if (part === "countdown") return focusAnchor("countdown", "fixed");
+        if (part === "popup") return focusAnchor("popup", "fixed");
+        if (part === "fiximage") return focusAnchor("fiximage", "fixed");
     }, [currentPageId]);
 
     // 클릭한 섹션이 페이지 구성 탭에 렌더될 때까지 재시도하며 스크롤 + 강조.
@@ -356,6 +406,41 @@ function SettingPageInner() {
         <AutoFocusContext.Provider value={autoFocus}>
         <DomainContext.Provider value={domain ?? ""}>
             <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 suit overflow-hidden">
+                <GuideButton onClick={() => setGuideOpen(true)} />
+                <GuideTour
+                    open={guideOpen}
+                    onClose={closeGuide}
+                    onLocate={(loc) => {
+                        if (!loc) return;
+                        if (loc.pane) setPane(loc.pane);
+                        if (loc.tab) setActiveTab(loc.tab as TabKey);
+                        if (loc.mode) setMode(loc.mode);
+                        if (loc.open) {
+                            // 해당 아코디언을 열어 내용을 펼쳐 보여준다(미리보기 클릭과 동일 경로).
+                            focusNonceRef.current += 1;
+                            setEditorFocus({
+                                anchor: loc.open,
+                                nonce: focusNonceRef.current,
+                            });
+                        }
+                        // 기능 토글: 이 단계에서 소개하는 것만 켜고, 나머지 데모 기능은
+                        // 꺼서 미리보기에 '한 번에 하나씩'만 보이게 한다.
+                        setS((prev) => {
+                            const enabled = { ...prev.enabled };
+                            const on = new Set(loc.enable ?? []);
+                            let changed = false;
+                            for (const k of GUIDE_FEATURE_FLAGS) {
+                                const want = on.has(k);
+                                if (enabled[k] !== want) {
+                                    enabled[k] = want;
+                                    changed = true;
+                                }
+                            }
+                            return changed ? { ...prev, enabled } : prev;
+                        });
+                    }}
+                    onDemoEdit={handleEditPart}
+                />
                 {/* Mobile-only pane toggle */}
                 <div className="lg:hidden shrink-0 px-3 py-2 bg-white border-b border-slate-200 flex justify-center">
                     <PaneTabs pane={pane} onChange={setPane} />
@@ -368,18 +453,25 @@ function SettingPageInner() {
                     } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col items-center p-4 sm:p-6 overflow-auto`}
                 >
                     <div className="flex flex-col items-center gap-5 my-auto w-full">
-                        <PreviewModeToggle mode={mode} onChange={setMode} />
-                        <Preview
-                            s={s}
-                            mode={mode}
-                            currentPageId={currentPageId}
-                            onNavigate={selectPage}
-                            onEditPart={handleEditPart}
-                        />
-                        <AutoFocusToggle
-                            value={autoFocus}
-                            onChange={setAutoFocus}
-                        />
+                        <PreviewClickHint />
+                        <div data-guide="preview-mode">
+                            <PreviewModeToggle mode={mode} onChange={setMode} />
+                        </div>
+                        <div data-guide="preview" className="w-full flex justify-center">
+                            <Preview
+                                s={s}
+                                mode={mode}
+                                currentPageId={currentPageId}
+                                onNavigate={selectPage}
+                                onEditPart={handleEditPart}
+                            />
+                        </div>
+                        <div data-guide="autofocus">
+                            <AutoFocusToggle
+                                value={autoFocus}
+                                onChange={setAutoFocus}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -433,27 +525,27 @@ function SettingPageInner() {
                                 </button>
                             </div>
                         </div>
-                        <EditorTabs
-                            activeTab={activeTab}
-                            onChange={handleTabChange}
-                        />
-                        {activeTab === "subpages" ? (
-                            <PageSelector
-                                subPages={s.subPages}
-                                currentPageId={currentPageId}
-                                onSelect={selectPage}
+                        <div data-guide="tabs">
+                            <EditorTabs
+                                activeTab={activeTab}
+                                onChange={handleTabChange}
                             />
+                        </div>
+                        {activeTab === "subpages" ? (
+                            <div data-guide="page-selector">
+                                <PageSelector
+                                    subPages={s.subPages}
+                                    currentPageId={currentPageId}
+                                    onSelect={selectPage}
+                                />
+                            </div>
                         ) : null}
                     </div>
 
-                    <div className="flex-1 min-h-0 min-w-0 overflow-y-auto editor-scroll py-4 px-3 sm:px-4 relative">
-                        {restorable && load.status !== "loading" ? (
-                            <RestoreBanner
-                                entry={restorable}
-                                onRestore={handleRestoreAutosave}
-                                onDismiss={dismissRestore}
-                            />
-                        ) : null}
+                    <div
+                        data-guide="editor-body"
+                        className="flex-1 min-h-0 min-w-0 overflow-y-auto editor-scroll py-4 px-3 sm:px-4 relative"
+                    >
                         <EditorFocusContext.Provider value={editorFocus}>
                             <EditorPanel
                                 s={s}
@@ -488,11 +580,18 @@ function SettingPageInner() {
                                 onSave={handleSaveDraft}
                                 onRestore={handleRestoreDraft}
                                 onDelete={handleDeleteDraft}
+                                autosaveAt={
+                                    load.status !== "loading" && restorable
+                                        ? restorable.savedAt
+                                        : null
+                                }
+                                onRestoreAutosave={handleRestoreAutosave}
                             />
                             <AutosaveStatus savedAt={autosavedAt} />
                         </div>
                         <button
                             type="button"
+                            data-guide="save"
                             className="btn btn-primary w-full py-3"
                             onClick={handleSave}
                             disabled={saving || load.status === "loading"}
@@ -554,6 +653,37 @@ function PaneTabButton({
         >
             {children}
         </button>
+    );
+}
+
+function PreviewClickHint() {
+    return (
+        <div className="flex items-center gap-2 rounded-full bg-blue-50 border border-blue-100 px-4 py-2 text-xs sm:text-[13px] text-blue-700 max-w-full text-center">
+            <svg
+                className="w-4 h-4 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden
+            >
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"
+                />
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 13l6 6"
+                />
+            </svg>
+            <span className="leading-snug">
+                수정할 곳을 <b className="font-semibold">클릭</b>하면 오른쪽에서
+                바로 편집할 수 있어요
+            </span>
+        </div>
     );
 }
 
