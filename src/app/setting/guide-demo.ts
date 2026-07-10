@@ -55,3 +55,87 @@ export function withGuideDemoExtras(base: Settings): Settings {
         },
     };
 }
+
+// 서버(기존 콘텐츠가 있는 사이트)에서도 가이드가 각 기능을 시연할 수 있도록,
+// 이번 단계에서 켠 기능의 콘텐츠가 비어 있으면 데모 값으로 채운다.
+// 이미 값이 있으면(사용자 실제 데이터) 건드리지 않는다. 반환값은 변경이 없으면 같은 참조.
+export function fillGuideFeatureContent(
+    s: Settings,
+    enabledKeys: string[],
+): Settings {
+    const on = new Set(enabledKeys);
+    let next = s;
+
+    if (on.has("quickConnect")) {
+        const k = next.quickConnect.kakao;
+        const sms = next.quickConnect.sms;
+        if (!k.enabled || !k.url || !sms.enabled || !sms.phone) {
+            next = {
+                ...next,
+                quickConnect: {
+                    kakao: {
+                        ...k,
+                        enabled: true,
+                        url: k.url || "https://pf.kakao.com/_demo",
+                    },
+                    sms: {
+                        ...sms,
+                        enabled: true,
+                        phone: sms.phone || "01000000000",
+                    },
+                },
+            };
+        }
+    }
+
+    if (on.has("fixedImage") && !next.info.fixedImage) {
+        next = { ...next, info: { ...next.info, fixedImage: FIXED_IMG } };
+    }
+
+    if (on.has("popup") && !next.popupImage) {
+        next = { ...next, popupImage: POPUP_IMG };
+    }
+
+    if (on.has("countdown") && !next.countdown.deadline) {
+        next = {
+            ...next,
+            countdown: { ...next.countdown, deadline: demoDeadline() },
+        };
+    }
+
+    if (on.has("bottomFixed")) {
+        const bf = next.bottomFixed;
+        if (!bf.phone.enabled && !bf.consult.enabled) {
+            next = {
+                ...next,
+                bottomFixed: {
+                    ...bf,
+                    phone: {
+                        ...bf.phone,
+                        enabled: true,
+                        mode: "text",
+                        text: bf.phone.text || "전화 상담",
+                    },
+                    consult: {
+                        ...bf.consult,
+                        enabled: true,
+                        mode: "text",
+                        text: bf.consult.text || "방문 예약",
+                    },
+                },
+            };
+        }
+    }
+
+    if (on.has("location") && !next.location.address && !next.location.embedUrl) {
+        next = {
+            ...next,
+            location: {
+                ...next.location,
+                address: "서울특별시 강남구 테헤란로 123",
+            },
+        };
+    }
+
+    return next;
+}

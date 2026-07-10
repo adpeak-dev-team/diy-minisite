@@ -31,7 +31,7 @@ import {
 } from "./_editor/drafts-ui";
 import { useSaveSettings, useSettings } from "@/service/setting";
 import { TEMPLATES } from "./templates";
-import { withGuideDemoExtras } from "./guide-demo";
+import { withGuideDemoExtras, fillGuideFeatureContent } from "./guide-demo";
 
 // 가이드가 단계별로 '하나씩' 켜고 끄는 데모 기능 토글들.
 // (header 는 항상 필요하므로 제외 — 여기 목록만 단계마다 초기화된다.)
@@ -424,7 +424,8 @@ function SettingPageInner() {
                             });
                         }
                         // 기능 토글: 이 단계에서 소개하는 것만 켜고, 나머지 데모 기능은
-                        // 꺼서 미리보기에 '한 번에 하나씩'만 보이게 한다.
+                        // 꺼서 미리보기에 '한 번에 하나씩'만 보이게 한다. 또한 켠 기능의
+                        // 콘텐츠가 비어 있으면(서버의 기존 사이트 등) 데모 값으로 채워 실제로 보이게.
                         setS((prev) => {
                             const enabled = { ...prev.enabled };
                             const on = new Set(loc.enable ?? []);
@@ -436,7 +437,8 @@ function SettingPageInner() {
                                     changed = true;
                                 }
                             }
-                            return changed ? { ...prev, enabled } : prev;
+                            const next = changed ? { ...prev, enabled } : prev;
+                            return fillGuideFeatureContent(next, loc.enable ?? []);
                         });
                     }}
                     onDemoEdit={handleEditPart}
