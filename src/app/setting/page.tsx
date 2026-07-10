@@ -110,30 +110,6 @@ function SettingPageInner() {
             /* localStorage 접근 불가 시 무시 */
         }
     }, []);
-    const closeGuide = useCallback(() => {
-        setGuideOpen(false);
-        try {
-            localStorage.setItem(GUIDE_SEEN_KEY, "1");
-        } catch {
-            /* 무시 */
-        }
-    }, []);
-    // 가이드를 열 때 편집 내용이 비어 있으면 시범용 예시 템플릿을 자동으로 채운다.
-    // 내용이 있으면 건드리지 않아 데이터 손실이 없고, 저장 전이라 실제 반영도 없다.
-    useEffect(() => {
-        if (!guideOpen) return;
-        if (s.sections.length > 0 || s.subPages.length > 0) return;
-        // 풀옵션(멀티페이지) 템플릿 — 위치·카운트다운·메뉴·하단바 등 기능이 켜진 상태라
-        // 가이드에서 각 기능이 실제로 작동하는 모습을 보여줄 수 있다.
-        const demo = TEMPLATES.find((t) => t.id === "multipage") ?? TEMPLATES[0];
-        if (!demo) return;
-        /* eslint-disable react-hooks/set-state-in-effect */
-        // 예시 이미지·마감일까지 채워 팝업·우측고정·카운트다운도 미리보기에 실제로 보이게.
-        setS({ ...withGuideDemoExtras(demo.build()), domain: s.domain });
-        setCurrentPageId(null);
-        /* eslint-enable react-hooks/set-state-in-effect */
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [guideOpen]);
     // 미리보기에서 클릭한 섹션을 페이지 구성 탭에서 스크롤·강조하기 위한 대기 상태.
     const [pendingFocus, setPendingFocus] = useState<{
         id: string;
@@ -214,6 +190,36 @@ function SettingPageInner() {
                               : String(settingsQuery.error),
                   }
                 : { status: "ready" };
+
+    // 가이드를 열면 편집 내용과 무관하게 시연용 예시(풀옵션 템플릿 + 예시 이미지/마감일)로
+    // 교체한다. 저장 전이라 실제 반영은 없다. 백엔드 설정 로드가 데모를 덮어쓰지 않도록
+    // 로드가 끝난 뒤(그리고 로드가 갱신될 때마다) 적용한다. (이 effect 는 load 이후에 선언)
+    useEffect(() => {
+        if (!guideOpen) return;
+        if (domain && settingsQuery.isPending) return; // 서버 로드 중이면 끝난 뒤
+        const demo = TEMPLATES.find((t) => t.id === "multipage") ?? TEMPLATES[0];
+        if (!demo) return;
+        /* eslint-disable react-hooks/set-state-in-effect */
+        setS({ ...withGuideDemoExtras(demo.build()), domain: domain ?? "" });
+        setCurrentPageId(null);
+        /* eslint-enable react-hooks/set-state-in-effect */
+    }, [guideOpen, domain, settingsQuery.data, settingsQuery.isPending]);
+
+    // 가이드를 닫으면 데모로 바꿨던 편집 내용을 사용자 실제 설정으로 되돌린다.
+    const closeGuide = useCallback(() => {
+        setGuideOpen(false);
+        try {
+            localStorage.setItem(GUIDE_SEEN_KEY, "1");
+        } catch {
+            /* 무시 */
+        }
+        if (domain && settingsQuery.data) {
+            setS({ ...settingsQuery.data, domain });
+        } else {
+            setS({ ...initialSettings, domain: domain ?? "" });
+        }
+        setCurrentPageId(null);
+    }, [domain, settingsQuery.data]);
 
     const lifecycle = useImageLifecycle();
 
@@ -351,7 +357,12 @@ function SettingPageInner() {
 
     // 자동저장 + 임시저장 목록 (localStorage, 서버 미연결 상태 작업 보호)
     const { drafts, autosavedAt, restorable, refreshDrafts, dismissRestore } =
-        useDrafts({ domain, s, enabled: load.status !== "loading" });
+        useDrafts({
+            domain,
+            s,
+            // 가이드(데모 표시) 중에는 자동저장 금지 — 데모가 저장되지 않도록.
+            enabled: load.status !== "loading" && !guideOpen,
+        });
 
     const handleSaveDraft = useCallback(() => {
         saveDraft(domain, formatNowName(), s);
@@ -395,12 +406,14 @@ function SettingPageInner() {
         const onKey = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
                 e.preventDefault();
-                if (!saving && load.status !== "loading") handleSave();
+                // 가이드(데모 표시) 중에는 저장 금지 — 데모가 저장되지 않도록.
+                if (!guideOpen && !saving && load.status !== "loading")
+                    handleSave();
             }
         };
         window.addEventListener("keydown", onKey);
         return () => window.removeEventListener("keydown", onKey);
-    }, [handleSave, saving, load.status]);
+    }, [handleSave, saving, load.status, guideOpen]);
 
     return (
         <AutoFocusContext.Provider value={autoFocus}>
@@ -414,7 +427,9 @@ function SettingPageInner() {
                         if (!loc) return;
                         if (loc.pane) setPane(loc.pane);
                         if (loc.tab) setActiveTab(loc.tab as TabKey);
-                        if (loc.mode) setMode(loc.mode);
+                        // 단계마다 미리보기 크기를 지정값(없으면 PC)으로 되돌린다.
+                        // → 2단계에서 모바일을 골라도 다음 단계는 PC로 진행.
+                        setMode(loc.mode ?? "pc");
                         if (loc.open) {
                             // 해당 아코디언을 열어 내용을 펼쳐 보여준다(미리보기 클릭과 동일 경로).
                             focusNonceRef.current += 1;
