@@ -30,12 +30,15 @@ export function Preview({
     currentPageId,
     onNavigate,
     onEditPart,
+    compact = false,
 }: {
     s: Settings;
     mode: PreviewMode;
     currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
     onEditPart?: (part: EditPart) => void;
+    // 작은 화면(실기기 모바일): 모바일 미리보기를 폰 프레임 없이 렌더.
+    compact?: boolean;
 }) {
     const sections = resolveSections(s, currentPageId);
     return mode === "pc" ? (
@@ -53,6 +56,7 @@ export function Preview({
             currentPageId={currentPageId}
             onNavigate={onNavigate}
             onEditPart={onEditPart}
+            bare={compact}
         />
     );
 }
@@ -227,12 +231,15 @@ function MobilePreview({
     currentPageId,
     onNavigate,
     onEditPart,
+    bare = false,
 }: {
     s: Settings;
     sections: Section[];
     currentPageId: string | null;
     onNavigate?: (pageId: string | null) => void;
     onEditPart?: (part: EditPart) => void;
+    // 폰 프레임(검은 테두리·노치) 없이 화면 너비를 채우는 형태. 실기기 모바일 편집용.
+    bare?: boolean;
 }) {
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
@@ -245,13 +252,20 @@ function MobilePreview({
     const isFix = s.enabled.header && s.headerStyle === "fix";
     const editClick = makeEditClick(onEditPart);
 
+    // bare: 프레임 없이 너비를 꽉 채우는 카드. 기본: 검은 폰 프레임(고정 320×660).
+    const outerClass = bare
+        ? "relative w-full h-[72vh] max-h-[760px] rounded-2xl border border-slate-200 shadow-xl overflow-hidden bg-white"
+        : "relative w-[320px] h-[660px] bg-black rounded-[42px] p-2 shadow-2xl";
+    const innerClass = bare
+        ? "relative w-full h-full overflow-hidden bg-white flex flex-col"
+        : "relative w-full h-full rounded-[34px] overflow-hidden bg-white flex flex-col";
+
     return (
-        <div className="relative w-[320px] h-[660px] bg-black rounded-[42px] p-2 shadow-2xl">
-            <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-b-2xl z-20" />
-            <div
-                className="relative w-full h-full rounded-[34px] overflow-hidden bg-white flex flex-col"
-                style={{ fontFamily }}
-            >
+        <div className={outerClass}>
+            {!bare ? (
+                <div className="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-5 bg-black rounded-b-2xl z-20" />
+            ) : null}
+            <div className={innerClass} style={{ fontFamily }}>
                 <div
                     ref={scrollRef}
                     className="flex-1 overflow-y-auto"

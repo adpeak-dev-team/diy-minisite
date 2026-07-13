@@ -96,6 +96,19 @@ function SettingPageInner() {
     const [s, setS] = useState<Settings>(initialSettings);
     const [autoFocus, setAutoFocus] = useState(true);
     const [mode, setMode] = useState<PreviewMode>("pc");
+    // 작은 화면(lg 미만, 폰)에서는 미리보기를 모바일로 고정하고 PC/모바일 토글을 숨긴다.
+    // (모바일에선 PC 미리보기가 의미 없으므로.) 하이드레이션 미스매치를 피해 초기값은
+    // false 로 두고 마운트 후 matchMedia 로 판단·추적한다.
+    const [isCompact, setIsCompact] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia("(max-width: 1023px)");
+        const update = () => setIsCompact(mq.matches);
+        update();
+        mq.addEventListener("change", update);
+        return () => mq.removeEventListener("change", update);
+    }, []);
+    // 실제 미리보기에 쓰는 모드: 작은 화면이면 항상 모바일(토글이 없으므로 고정).
+    const effectiveMode: PreviewMode = isCompact ? "mobile" : mode;
     const [currentPageId, setCurrentPageId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>("info");
     const [pane, setPane] = useState<Pane>("editor");
@@ -487,13 +500,17 @@ function SettingPageInner() {
                 >
                     <div className="flex flex-col items-center gap-5 my-auto w-full">
                         <PreviewClickHint />
-                        <div data-guide="preview-mode">
-                            <PreviewModeToggle mode={mode} onChange={setMode} />
-                        </div>
+                        {/* 작은 화면에선 토글을 숨기고 모바일 미리보기만 보여준다. */}
+                        {!isCompact ? (
+                            <div data-guide="preview-mode">
+                                <PreviewModeToggle mode={mode} onChange={setMode} />
+                            </div>
+                        ) : null}
                         <div data-guide="preview" className="w-full flex justify-center">
                             <Preview
                                 s={s}
-                                mode={mode}
+                                mode={effectiveMode}
+                                compact={isCompact}
                                 currentPageId={currentPageId}
                                 onNavigate={selectPage}
                                 onEditPart={handleEditPart}

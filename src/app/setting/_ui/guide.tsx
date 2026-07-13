@@ -314,9 +314,29 @@ export function GuideTour({
     const [menuOpen, setMenuOpen] = useState(false); // 목차(바로가기) 열림
     const cardRef = useRef<HTMLDivElement>(null);
 
-    const cur = STEPS[step];
+    // 작은 화면(lg 미만)에서는 좌우 분할 전제 단계를 뺀다:
+    //  - 'PC·모바일 전환'(target: preview-mode) — 토글이 없음
+    //  - '클릭해서 바로 편집' 데모(demo) — "오른쪽이 열렸어요"가 pane 전환 UX 와 안 맞음
+    const [compact, setCompact] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia("(max-width: 1023px)");
+        const update = () => setCompact(mq.matches);
+        update();
+        mq.addEventListener("change", update);
+        return () => mq.removeEventListener("change", update);
+    }, []);
+    const steps = compact
+        ? STEPS.filter((s) => s.target !== "preview-mode" && !s.demo)
+        : STEPS;
+    // steps 개수가 줄어(브레이크포인트 교차) step 이 범위를 벗어나지 않게 클램프.
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setStep((s) => Math.min(s, steps.length - 1));
+    }, [steps.length]);
+
+    const cur = steps[Math.min(step, steps.length - 1)];
     const first = step === 0;
-    const last = step === STEPS.length - 1;
+    const last = step >= steps.length - 1;
     // 현재 phase 에 맞는 제목/설명. (데모 phase1 / 체험 exp[phase])
     const expPhase = cur.exp
         ? cur.exp[Math.min(phase, cur.exp.length - 1)]
@@ -343,16 +363,19 @@ export function GuideTour({
         setCursor(false);
     };
 
-    const go = useCallback((next: number) => {
-        resetSpot();
-        setMenuOpen(false);
-        setStep(Math.max(0, Math.min(next, STEPS.length - 1)));
-        setPhase(0);
-    }, []);
+    const go = useCallback(
+        (next: number) => {
+            resetSpot();
+            setMenuOpen(false);
+            setStep(Math.max(0, Math.min(next, steps.length - 1)));
+            setPhase(0);
+        },
+        [steps.length],
+    );
 
     // 데모 단계에서 사용자가 강조 영역을 직접 클릭하면 실제 편집을 열고 phase 1 로.
     const demoClick = () => {
-        const st = STEPS[step];
+        const st = steps[step];
         if (!st.demo) return;
         const el = document.querySelector(st.demo.clickSel);
         const part = el?.getAttribute("data-edit");
@@ -384,7 +407,7 @@ export function GuideTour({
     useEffect(() => {
         if (open) return;
         /* eslint-disable react-hooks/set-state-in-effect */
-        setStep((s) => (s >= STEPS.length - 1 ? 0 : s));
+        setStep((s) => (s >= steps.length - 1 ? 0 : s));
         setPhase(0);
         setRect(null);
         setRect2(null);
@@ -393,6 +416,7 @@ export function GuideTour({
         setCursor(false);
         setMenuOpen(false);
         /* eslint-enable react-hooks/set-state-in-effect */
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
     // 키보드 조작.
@@ -421,7 +445,7 @@ export function GuideTour({
     // 단계/페이즈 진입: 위치 전환 → 대상 탐색 → 스크롤 → 측정.
     useEffect(() => {
         if (!open) return;
-        const st = STEPS[step];
+        const st = steps[step];
 
         // 대상 요소를 찾을 때까지 재시도 후 측정.
         const runSeek = (
@@ -494,7 +518,7 @@ export function GuideTour({
     // 초기 탐색(resolved)이 끝난 뒤에만 돌아 전환 중 stale 측정을 피한다.
     useEffect(() => {
         if (!open || !resolved) return;
-        const st = STEPS[step];
+        const st = steps[step];
         const getEl = (): HTMLElement | null => {
             if (st.demo)
                 return phase === 0
@@ -538,12 +562,13 @@ export function GuideTour({
         };
         raf = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(raf);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, step, phase, resolved]);
 
     // 체험 단계: 사용자가 watch 영역을 실제로 클릭하면 다음 체험 단계로 진행.
     useEffect(() => {
         if (!open) return;
-        const st = STEPS[step];
+        const st = steps[step];
         if (!st.exp) return;
         const p = st.exp[Math.min(phase, st.exp.length - 1)];
         if (!p.watch) return;
@@ -558,6 +583,7 @@ export function GuideTour({
         // 캡처 단계로 들어 실제 요소의 동작과 관계없이 진행을 감지.
         document.addEventListener("click", onClick, true);
         return () => document.removeEventListener("click", onClick, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, step, phase]);
 
     // 대상 근처 카드 위치 계산(공간 없으면 위로).
@@ -767,7 +793,7 @@ export function GuideTour({
                                 className="inline-flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-700 shrink-0"
                                 title="목차 — 원하는 단계로 바로 이동"
                             >
-                                {step + 1} / {STEPS.length} 단계
+                                {step + 1} / {steps.length} 단계
                                 <span className="text-[10px] leading-none">▾</span>
                             </button>
                             <span className="text-[11px] text-slate-400">
@@ -827,7 +853,7 @@ export function GuideTour({
                 {/* 목차(바로가기) — 아무 단계로나 바로 이동 */}
                 {menuOpen ? (
                     <div className="absolute left-4 right-4 top-16 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 z-10">
-                        {STEPS.map((s, i) => (
+                        {steps.map((s, i) => (
                             <button
                                 key={i}
                                 type="button"
