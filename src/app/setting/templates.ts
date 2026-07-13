@@ -6,10 +6,11 @@ import {
     SubPage,
     uid,
 } from "./types";
+import { heroImg, simpleImg } from "./template-images";
 
 // 편집 시작용 템플릿. build() 는 매번 새 id 로 섹션을 생성해 안전하게 적용 가능.
 // 좌측 상단 "템플릿 선택" 에서 고르면 현재 편집 내용을 이 결과로 교체한다.
-// 이미지는 모두 비어 있는 상태(placeholder)로, 편집 화면에서 직접 업로드해 채운다.
+// 이미지는 분양 테마 임시 이미지(placeholder)로 채워지며, 편집 화면에서 교체한다.
 // 템플릿마다 주소 · 메뉴(멀티페이지) · 마케팅 기능을 다르게 섞어 구성했다.
 export type Template = {
     id: string;
@@ -17,13 +18,14 @@ export type Template = {
     build: () => Settings;
 };
 
-// ---- 섹션 헬퍼 (모두 이미지 비움) ----
-const heroSec = (content: string): Section => ({
+// ---- 섹션 헬퍼 (분양 홍보 랜딩용 임시 이미지 포함, 편집기에서 교체) ----
+// 메인 배너는 이미지만(텍스트 오버레이 없음). 문구는 배너 이미지 안에 들어간다.
+const heroSec = (): Section => ({
     id: uid(),
     type: "hero",
     title: "메인 배너",
-    image: null,
-    content,
+    image: heroImg(),
+    content: "",
     textPosition: "center",
     animation: "fade-in",
 });
@@ -34,11 +36,24 @@ const textSec = (title: string, content: string): Section => ({
     image: null,
     content,
 });
+// 섹션 제목용 텍스트 — 본문과 분리해 '제목답게' 표시. 가운데 정렬 + 포인트 언더바.
+// 프리플라이트가 h 태그를 리셋하므로 인라인 스타일로 크기·굵기를 준다. 편집기에서 문구만 바꾸면 된다.
+const titleSec = (title: string): Section => ({
+    id: uid(),
+    type: "text",
+    title,
+    image: null,
+    content:
+        `<div style="text-align:center">` +
+        `<h2 style="font-size:24px;font-weight:800;color:#0f172a;letter-spacing:-0.02em;margin:0">${title}</h2>` +
+        `<div style="width:36px;height:3px;background:#2563eb;border-radius:2px;margin:12px auto 0"></div>` +
+        `</div>`,
+});
 const imageSec = (title: string): Section => ({
     id: uid(),
     type: "image",
     title,
-    image: null,
+    image: simpleImg(title),
     content: "",
 });
 const gallerySec = (title: string): Section => ({
@@ -46,7 +61,11 @@ const gallerySec = (title: string): Section => ({
     type: "gallery",
     title,
     image: null,
-    images: [],
+    images: [
+        { id: uid(), image: simpleImg("84A 타입") },
+        { id: uid(), image: simpleImg("84B 타입") },
+        { id: uid(), image: simpleImg("114 타입") },
+    ],
     content: "",
 });
 const formSec = (
@@ -157,8 +176,16 @@ function bunyangShell(opts: {
                 : initialSettings.bottomFixed.consult,
         },
         quickConnect: {
-            kakao: { enabled: hasKakao, url: "" },
-            sms: { enabled: hasSms, phone: "", content: opts.sms ?? "" },
+            // 버튼이 미리보기에 실제로 뜨도록 예시 URL·번호를 넣는다(편집기에서 교체).
+            kakao: {
+                enabled: hasKakao,
+                url: hasKakao ? "https://pf.kakao.com/_example" : "",
+            },
+            sms: {
+                enabled: hasSms,
+                phone: hasSms ? "010-0000-0000" : "",
+                content: opts.sms ?? "",
+            },
         },
         location: hasLocation
             ? { address: opts.address!, embedUrl: "" }
@@ -176,6 +203,40 @@ function bunyangShell(opts: {
     };
 }
 
+// 모든 템플릿의 공통 기준 섹션 (분양 미니사이트 정석 흐름).
+//   메인 배너 + 조감도 + [입지안내] + [단지안내] + [추가] + 타입안내 + 예약폼.
+// 입지안내·단지안내는 각각 제목(text) → 이미지 → 본문(text) 3섹션으로 구성한다.
+// extra 로 단지안내와 타입안내 사이에 섹션을 끼우고, visit 로 폼 종류를 바꾼다.
+function basicSections(opts: { extra?: Section[]; visit?: boolean } = {}): Section[] {
+    return [
+        heroSec(),
+        // 조감도: 제목 → 이미지
+        titleSec("조감도"),
+        imageSec("조감도"),
+        // 입지안내: 제목 → 이미지 → 본문
+        titleSec("입지안내"),
+        imageSec("위치도"),
+        textSec(
+            "입지 내용",
+            "<p>■ 지하철 ○○역 도보 O분 (역세권)<br>■ ○○IC 인접, 광역 교통망<br>■ 대형마트 · 병원 · 공원 도보권</p>",
+        ),
+        // 단지안내: 제목 → 이미지 → 본문
+        titleSec("단지안내"),
+        imageSec("단지 배치도"),
+        textSec(
+            "단지 내용",
+            "<p>■ 규모 : 지하 O층 ~ 지상 OO층<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월<br>■ 커뮤니티 · 편의시설 : 피트니스 · 게스트하우스 등</p>",
+        ),
+        ...(opts.extra ?? []),
+        // 타입안내: 제목 → 갤러리
+        titleSec("타입안내"),
+        gallerySec("타입안내"),
+        opts.visit
+            ? formSec("visit", "예약폼", "모델하우스 방문예약", "예약하기")
+            : formSec("consult", "예약폼", "관심고객 등록", "등록하기"),
+    ];
+}
+
 // 1) 기본형 — 가장 단순한 원페이지 (히어로 + 개요 + 관심고객 폼)
 function basicLanding(): Settings {
     return bunyangShell({
@@ -184,17 +245,48 @@ function basicLanding(): Settings {
         dbTitle: "분양 상담 접수",
         bottomPhone: "전화 상담",
         bottomConsult: "관심 등록",
-        sections: [
-            heroSec(
-                "<h2>[단지명] 신규 분양</h2><p>프리미엄 입지, 지금 관심고객으로 등록하세요.</p>",
-            ),
-            textSec(
-                "분양 개요",
-                "<h3>분양 개요</h3><p>■ 위치 : ○○시 ○○구 ○○동<br>■ 규모 : 지하 O층 ~ 지상 OO층<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월</p>",
-            ),
-            imageSec("조감도"),
-            formSec("consult", "관심고객 등록", "관심고객 등록", "등록하기"),
-        ],
+        sections: basicSections(),
+    });
+}
+
+// 1-a) 기본 + 마감 타이머 — 카운트다운으로 긴박함 강조
+function basicCountdownLanding(): Settings {
+    return bunyangShell({
+        siteName: "○○ 신규분양",
+        company: "○○ 분양문의",
+        dbTitle: "분양 상담 접수",
+        bottomPhone: "전화 상담",
+        bottomConsult: "관심 등록",
+        countdown: { title: "관심고객 등록 마감 임박", applicants: "126" },
+        sections: basicSections(),
+    });
+}
+
+// 1-b) 기본 + 카톡·문자 상담 — 빠른연결 플로팅 버튼
+function basicQuickLanding(): Settings {
+    return bunyangShell({
+        siteName: "○○ 신규분양",
+        company: "○○ 분양문의",
+        dbTitle: "분양 상담 접수",
+        bottomPhone: "전화 상담",
+        bottomConsult: "관심 등록",
+        kakao: true,
+        sms: "[단지명] 분양 문의합니다.",
+        sections: basicSections(),
+    });
+}
+
+// 1-c) 기본 + 위치·지도 — 주소 입력 시 하단에 지도, 입지 섹션 추가
+function basicMapLanding(): Settings {
+    return bunyangShell({
+        siteName: "○○ 신규분양",
+        company: "○○ 분양문의",
+        dbTitle: "분양 상담 접수",
+        bottomPhone: "전화 상담",
+        bottomConsult: "관심 등록",
+        address: "서울특별시 ○○구 ○○로 ○○",
+        // 입지안내는 공통 골격에 이미 포함 → 주소(하단 지도)만 추가로 켠다.
+        sections: basicSections(),
     });
 }
 
@@ -215,14 +307,17 @@ function multiPageLanding(): Settings {
                 slug: "info",
                 title: "분양안내",
                 sections: [
+                    titleSec("분양 개요"),
                     textSec(
-                        "분양 개요",
-                        "<h3>[단지명]</h3><p>■ 위치 : ○○시 ○○구 ○○동<br>■ 규모 : 지하 O층 ~ 지상 OO층<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월</p>",
+                        "분양 개요 내용",
+                        "<p>■ 위치 : ○○시 ○○구 ○○동<br>■ 규모 : 지하 O층 ~ 지상 OO층<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월</p>",
                     ),
+                    titleSec("특장점"),
                     textSec(
-                        "특장점",
+                        "특장점 내용",
                         "<p>■ 프리미엄 설계와 마감<br>■ 편리한 주차와 동선<br>■ 다양한 커뮤니티 · 편의시설</p>",
                     ),
+                    titleSec("조감도"),
                     imageSec("조감도"),
                 ],
             },
@@ -230,148 +325,34 @@ function multiPageLanding(): Settings {
                 slug: "floorplan",
                 title: "평면안내",
                 sections: [
+                    titleSec("타입안내"),
                     textSec(
                         "타입 구성",
                         "<p>다양한 면적 · 타입으로 구성되어 있습니다. 아래에서 평면을 확인하세요.</p>",
                     ),
-                    gallerySec("평면도 · 내부"),
+                    gallerySec("타입안내"),
                 ],
             },
             {
                 slug: "location",
                 title: "오시는길",
                 sections: [
+                    titleSec("입지안내"),
                     textSec(
-                        "입지 환경",
-                        "<h3>사통팔달 교통 · 생활 인프라</h3><p>■ 지하철 ○○역 도보 O분<br>■ ○○IC 인접<br>■ 학교 · 마트 · 병원 도보권</p>",
+                        "입지 내용",
+                        "<p>■ 지하철 ○○역 도보 O분<br>■ ○○IC 인접<br>■ 학교 · 마트 · 병원 도보권</p>",
                     ),
                 ],
             },
         ],
-        sections: [
-            heroSec(
-                "<h2>[단지명] 프리미엄 신규 분양</h2><p>완벽한 입지, 마지막 기회 — 지금 관심고객으로 등록하세요.</p>",
-            ),
-            textSec(
-                "분양 개요",
-                "<h3>분양 개요</h3><p>■ 위치 : ○○시 ○○구 ○○동<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월<br>자세한 내용은 상단 메뉴에서 확인하세요.</p>",
-            ),
-            formSec(
-                "visit",
-                "방문 예약 · 관심고객 등록",
-                "모델하우스 방문예약",
-                "예약하기",
-            ),
-        ],
-    });
-}
-
-// 3) 원페이지 세일즈 — 긴 스크롤 단일 페이지 · 마케팅 강조 (카운트다운 상단 고정)
-function salesLanding(): Settings {
-    return bunyangShell({
-        siteName: "○○ 신규분양",
-        company: "○○ 분양사무소",
-        dbTitle: "분양 상담 접수",
-        countdown: { title: "선착순 계약 마감 임박", applicants: "173" },
-        bottomPhone: "전화 상담",
-        bottomConsult: "관심 등록",
-        kakao: true,
-        sms: "[단지명] 분양 문의합니다.",
-        sections: [
-            heroSec(
-                "<h2>[단지명] 지금이 마지막 기회</h2><p>프리미엄 입지, 선착순 분양 — 놓치지 마세요.</p>",
-            ),
-            textSec(
-                "분양 개요",
-                "<h3>분양 개요</h3><p>■ 위치 : ○○시 ○○구 ○○동<br>■ 규모 : 지하 O층 ~ 지상 OO층<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월</p>",
-            ),
-            textSec(
-                "입지 환경",
-                "<h3>사통팔달 교통 · 생활 인프라</h3><p>■ 지하철 ○○역 도보 O분<br>■ ○○IC 인접<br>■ 학교 · 마트 · 병원 도보권</p>",
-            ),
-            textSec(
-                "특장점",
-                "<h3>차별화된 프리미엄</h3><p>■ 프리미엄 설계와 마감<br>■ 편리한 주차와 동선<br>■ 다양한 커뮤니티 · 편의시설</p>",
-            ),
-            imageSec("조감도"),
-            gallerySec("평면도 · 내부"),
-            formSec(
-                "consult",
-                "관심고객 등록",
-                "관심고객 등록 · 상담 신청",
-                "등록하기",
-            ),
-        ],
-    });
-}
-
-// 4) 방문예약형 — 모델하우스 방문 중심 · 주소/지도 + 방문예약 폼 (카카오 없음)
-function visitLanding(): Settings {
-    return bunyangShell({
-        siteName: "○○ 신규분양",
-        company: "○○ 분양문의",
-        dbTitle: "방문 예약 접수",
-        address: "경기도 ○○시 ○○구 ○○대로 ○○ (○○ 모델하우스)",
-        countdown: { title: "방문 예약 마감 임박", applicants: "88" },
-        bottomConsult: "방문 예약",
-        sms: "[단지명] 모델하우스 방문 예약합니다.",
-        sections: [
-            heroSec(
-                "<h2>[단지명] 모델하우스 오픈</h2><p>지금 방문 예약하고 특별한 혜택을 받으세요.</p>",
-            ),
-            textSec(
-                "분양 개요",
-                "<h3>분양 개요</h3><p>■ 위치 : ○○시 ○○구 ○○동<br>■ 규모 : 지하 O층 ~ 지상 OO층<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월</p>",
-            ),
-            imageSec("조감도"),
-            textSec(
-                "방문 안내",
-                "<h3>모델하우스 방문 안내</h3><p>■ 운영 시간 : 10:00 ~ 18:00<br>■ 사전 예약 시 대기 없이 상담 가능<br>■ 방문 고객 특별 혜택 제공</p>",
-            ),
-            formSec(
-                "visit",
-                "방문 예약",
-                "모델하우스 방문예약",
-                "예약하기",
-            ),
-        ],
-    });
-}
-
-// 5) 입지·지도 중심 — 위치를 강조하는 간결한 구성 (주소/지도 강조, 카운트다운 없음)
-function locationLanding(): Settings {
-    return bunyangShell({
-        siteName: "○○ 신규분양",
-        company: "○○ 분양문의",
-        dbTitle: "분양 상담 접수",
-        address: "서울특별시 ○○구 ○○로 ○○",
-        bottomPhone: "전화 상담",
-        kakao: true,
-        sections: [
-            heroSec(
-                "<h2>[단지명] 프리미엄 입지</h2><p>누구나 탐내는 바로 그 자리, 지금 관심고객으로 등록하세요.</p>",
-            ),
-            textSec(
-                "입지 환경",
-                "<h3>왜 이 위치인가</h3><p>■ 지하철 ○○역 도보 O분 (역세권)<br>■ ○○IC 인접, 광역 교통망<br>■ 대형마트 · 병원 · 공원 도보권</p>",
-            ),
-            textSec(
-                "생활 인프라",
-                "<p>■ ○○초 · ○○중 · ○○고 학군<br>■ 백화점 · 영화관 · 대형병원 인접<br>■ 공원 · 하천 등 쾌적한 자연환경</p>",
-            ),
-            textSec(
-                "분양 개요",
-                "<h3>분양 개요</h3><p>■ 위치 : ○○시 ○○구 ○○동<br>■ 세대(실) : 총 OOO<br>■ 입주 예정 : 20OO년 O월</p>",
-            ),
-            formSec("consult", "관심고객 등록", "관심고객 등록", "등록하기"),
-        ],
+        sections: basicSections({ visit: true }),
     });
 }
 
 export const TEMPLATES: Template[] = [
     { id: "basic", name: "기본형 (원페이지)", build: basicLanding },
+    { id: "basic-countdown", name: "기본 + 마감 타이머", build: basicCountdownLanding },
+    { id: "basic-quick", name: "기본 + 카톡·문자 상담", build: basicQuickLanding },
+    { id: "basic-map", name: "기본 + 위치·지도", build: basicMapLanding },
     { id: "multipage", name: "풀옵션 (멀티페이지)", build: multiPageLanding },
-    { id: "sales", name: "원페이지 세일즈", build: salesLanding },
-    { id: "visit", name: "방문예약형", build: visitLanding },
-    { id: "location", name: "입지·지도 중심", build: locationLanding },
 ];
