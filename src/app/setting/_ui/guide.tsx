@@ -378,12 +378,13 @@ export function GuideTour({
         return anchor;
     };
 
-    // 닫힐 때 상태를 초기화한다. 다음에 열면 stale 한 위치(직전 단계의 rect/pos)가
-    // 잠깐 보이지 않고 항상 처음(중앙)부터 시작하도록.
+    // 닫힐 때 위치/페이즈 상태를 비워 다음에 열 때 stale 한 하이라이트가 잠깐 보이지 않게 한다.
+    // 단, 단계(step)는 유지해 '이어보기'가 되게 하되, 마지막 단계까지 본(완주) 경우엔
+    // 처음(0)부터 다시 시작한다.
     useEffect(() => {
         if (open) return;
         /* eslint-disable react-hooks/set-state-in-effect */
-        setStep(0);
+        setStep((s) => (s >= STEPS.length - 1 ? 0 : s));
         setPhase(0);
         setRect(null);
         setRect2(null);
@@ -399,6 +400,17 @@ export function GuideTour({
         if (!open) return;
         // 닫기는 오직 '건너뛰기 / ×' 버튼으로만. ESC·바깥클릭으로는 닫지 않는다.
         const onKey = (e: KeyboardEvent) => {
+            // 체험/데모 단계에서 실제 입력창에 포커스한 채 좌우 화살표(커서 이동)를
+            // 눌러도 단계가 넘어가지 않도록, 편집 요소 안에서는 무시한다.
+            const t = e.target as HTMLElement | null;
+            if (
+                t &&
+                (t.tagName === "INPUT" ||
+                    t.tagName === "TEXTAREA" ||
+                    t.tagName === "SELECT" ||
+                    t.isContentEditable)
+            )
+                return;
             if (e.key === "ArrowRight") go(step + 1);
             else if (e.key === "ArrowLeft") go(step - 1);
         };

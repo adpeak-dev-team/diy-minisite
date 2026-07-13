@@ -100,6 +100,10 @@ function SettingPageInner() {
     const [activeTab, setActiveTab] = useState<TabKey>("info");
     const [pane, setPane] = useState<Pane>("editor");
     const [guideOpen, setGuideOpen] = useState(false);
+    // 편집 중 '가이드' 버튼으로 가이드를 열 때, 열기 직전 편집 상태를 저장했다가
+    // 닫을 때 그대로 복원해 내용이 유실되지 않게 한다. (첫 방문 자동 실행은 편집 전이라
+    // 스냅샷 없이 서버 설정으로 폴백한다.)
+    const preGuideRef = useRef<Settings | null>(null);
     // 처음 방문 시 가이드를 자동으로 한 번 띄운다. 닫으면 플래그를 저장해 다시 뜨지 않음.
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -205,7 +209,9 @@ function SettingPageInner() {
         /* eslint-enable react-hooks/set-state-in-effect */
     }, [guideOpen, domain, settingsQuery.data, settingsQuery.isPending]);
 
-    // 가이드를 닫으면 데모로 바꿨던 편집 내용을 사용자 실제 설정으로 되돌린다.
+    // 가이드를 닫으면 데모로 바꿨던 편집 내용을 되돌린다.
+    // 열기 직전 스냅샷이 있으면 그대로 복원(편집 중 열었어도 유실 없음),
+    // 없으면 서버 설정 → 초기 설정 순으로 폴백한다.
     const closeGuide = useCallback(() => {
         setGuideOpen(false);
         try {
@@ -213,7 +219,11 @@ function SettingPageInner() {
         } catch {
             /* 무시 */
         }
-        if (domain && settingsQuery.data) {
+        const snap = preGuideRef.current;
+        preGuideRef.current = null;
+        if (snap) {
+            setS(snap);
+        } else if (domain && settingsQuery.data) {
             setS({ ...settingsQuery.data, domain });
         } else {
             setS({ ...initialSettings, domain: domain ?? "" });
@@ -419,7 +429,13 @@ function SettingPageInner() {
         <AutoFocusContext.Provider value={autoFocus}>
         <DomainContext.Provider value={domain ?? ""}>
             <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 suit overflow-hidden">
-                <GuideButton onClick={() => setGuideOpen(true)} />
+                <GuideButton
+                    onClick={() => {
+                        // 편집 중 열 수 있으므로 현재 편집 상태를 스냅샷 후 연다.
+                        preGuideRef.current = s;
+                        setGuideOpen(true);
+                    }}
+                />
                 <GuideTour
                     open={guideOpen}
                     onClose={closeGuide}
