@@ -51,6 +51,12 @@ export function Toggle({
     );
 }
 
+// 이미 처리한 focus(미리보기 클릭/가이드) 의 nonce 를 anchor 별로 기억한다.
+// 탭 전환으로 아코디언이 다시 마운트될 때, 남아있는(sticky) 옛 focus 값으로
+// 효과가 재실행되어 엉뚱한 아코디언(예: 고급설정)이 다시 열리는 것을 막는다.
+// 새 클릭/가이드 단계는 매번 새 nonce 라 정상적으로 재발동한다.
+const handledFocusNonce = new Map<string, number>();
+
 export function AccordionSection({
     title,
     desc,
@@ -98,6 +104,9 @@ export function AccordionSection({
     // 미리보기에서 이 영역을 클릭한 경우: 아코디언 열고 스크롤 + 잠깐 강조.
     useEffect(() => {
         if (!focus || !anchor || focus.anchor !== anchor) return;
+        // 같은 focus(nonce)를 이미 처리했으면(=탭 전환으로 재마운트된 경우) 무시.
+        if (handledFocusNonce.get(anchor) === focus.nonce) return;
+        handledFocusNonce.set(anchor, focus.nonce);
         let clearTimer = 0;
         // 렌더/탭 전환 직후일 수 있어 다음 틱에 실행 (동기 setState 회피).
         const openTimer = window.setTimeout(() => {
