@@ -106,10 +106,14 @@ export function AccordionSection({
         if (!focus || !anchor || focus.anchor !== anchor) return;
         // 같은 focus(nonce)를 이미 처리했으면(=탭 전환으로 재마운트된 경우) 무시.
         if (handledFocusNonce.get(anchor) === focus.nonce) return;
-        handledFocusNonce.set(anchor, focus.nonce);
         let clearTimer = 0;
         // 렌더/탭 전환 직후일 수 있어 다음 틱에 실행 (동기 setState 회피).
         const openTimer = window.setTimeout(() => {
+            // "처리됨" 기록은 실제로 여는 이 시점에 한다. effect 본문에서 미리
+            // 기록하면 StrictMode 의 mount→cleanup→mount 이중 호출 때 첫 타이머가
+            // 취소된 뒤 두 번째 호출이 '이미 처리됨'으로 건너뛰어 아코디언이 끝내
+            // 안 열린다(=가이드 7단계 대상이 마운트되지 않아 카드가 중앙에 뜸).
+            handledFocusNonce.set(anchor, focus.nonce);
             setOpen(true);
             if (!focusScroll) return; // 열기만 하고 강조는 내부(섹션)에 위임
             const el = rowRef.current;
