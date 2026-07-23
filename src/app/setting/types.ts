@@ -397,10 +397,12 @@ export const initialSettings: Settings = {
     header: {
         logoImage: null,
         logoSize: "100",
-        logoAlign: "left",
+        // 로고/전화 이미지 중 하나만 있을 때만 정렬이 UI 상 노출 → 기본은 중앙.
+        // 둘 다 있으면 justify-between 이라 이 값은 사용되지 않음.
+        logoAlign: "center",
         phoneImage: null,
         phoneSize: "100",
-        phoneAlign: "right",
+        phoneAlign: "center",
         phoneNumber: "",
         color: "#0F172A",
         padding: "12",

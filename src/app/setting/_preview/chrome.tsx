@@ -1,7 +1,7 @@
 "use client";
 
 import { MouseEvent } from "react";
-import { MenuItem, Settings, SubPage } from "../types";
+import { HeaderAlign, MenuItem, Settings, SubPage } from "../types";
 import { clampPct, menuHref, parsePxOr } from "../lib";
 import { isLightColor } from "../color";
 
@@ -30,70 +30,101 @@ export function PreviewHeader({
     const sideX = pc ? 32 : 16;
     const sticky = s.headerStyle === "fix";
 
-    const justifyOf = (a: "left" | "center" | "right") =>
+    const justifyOf = (a: HeaderAlign) =>
         a === "center"
             ? "justify-center"
             : a === "right"
                 ? "justify-end"
                 : "justify-start";
 
-    const renderLogoNode = () => {
-        const inner = hasLogo ? (
+    // align 이 주어지면 컨테이너 안쪽도 flex + justify 로 만들어, 컨테이너 폭이
+    // 100% (즉 outer justify 로 컨테이너를 움직일 여지가 없는 상태) 여도 이미지가
+    // 좌/중/우 로 배치되게 함. align 미지정(로고+전화 동시 배치)은 기존 block 흐름.
+    const alignStyle = (a?: HeaderAlign) =>
+        a
+            ? {
+                  display: "flex" as const,
+                  justifyContent:
+                      a === "center"
+                          ? "center"
+                          : a === "right"
+                              ? "flex-end"
+                              : "flex-start",
+              }
+            : {};
+
+    const renderLogoNode = (align?: HeaderAlign) => {
+        const clickInner = hasLogo ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
                 src={s.header.logoImage!}
                 alt="logo"
-                style={{ width: `${logoPct}%` }}
-                className="h-auto"
+                style={{ maxWidth: "100%", height: "auto", display: "block" }}
             />
         ) : (
-            <div className={`font-medium opacity-60 ${pc ? "text-base" : "text-xs"}`}>
+            <span className={`font-medium opacity-60 ${pc ? "text-base" : "text-xs"}`}>
                 {s.info.siteName || "LOGO"}
-            </div>
+            </span>
         );
         // 로고 클릭 동작:
         // - 에디터(onNavigate 있음) → 미리보기 내부에서 메인 페이지(currentPageId=null) 로 전환
         // - 라이브(onNavigate 없음) → 실제 라우팅으로 '/' 이동
-        if (onNavigate) {
-            return (
-                <button
-                    type="button"
-                    onClick={() => onNavigate(null)}
-                    aria-label="메인으로"
-                    className="contents cursor-pointer"
-                >
-                    {inner}
-                </button>
-            );
-        }
-        return (
+        const clickable = onNavigate ? (
+            <button
+                type="button"
+                onClick={() => onNavigate(null)}
+                aria-label="메인으로"
+                className="cursor-pointer block bg-transparent border-0 p-0"
+                style={{ maxWidth: "100%" }}
+            >
+                {clickInner}
+            </button>
+        ) : (
             <a
                 href="/"
                 aria-label="메인으로"
-                className="contents cursor-pointer"
+                className="cursor-pointer block"
+                style={{ maxWidth: "100%" }}
             >
-                {inner}
+                {clickInner}
             </a>
+        );
+        // 로고 이미지가 있을 때만 컨테이너 폭에 %를 준다. 텍스트 대체(LOGO) 상태에선
+        // 자연 폭을 유지해야 outer flex 의 justify-* 로 좌/중/우 정렬이 자연스럽다.
+        return (
+            <div
+                style={{
+                    width: hasLogo ? `${logoPct}%` : undefined,
+                    ...alignStyle(align),
+                }}
+            >
+                {clickable}
+            </div>
         );
     };
 
-    const renderPhoneNode = () => {
+    const renderPhoneNode = (align?: HeaderAlign) => {
         if (!s.header.phoneImage) return null;
         const img = (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
                 src={s.header.phoneImage}
                 alt="phone"
-                style={{ width: `${phonePct}%` }}
-                className="h-auto"
+                style={{ maxWidth: "100%", height: "auto", display: "block" }}
             />
         );
         const tel = s.header.phoneNumber.replace(/[^0-9+]/g, "");
-        if (!tel) return img;
-        return (
-            <a href={`tel:${tel}`} className="contents">
+        const clickable = tel ? (
+            <a href={`tel:${tel}`} className="block" style={{ maxWidth: "100%" }}>
                 {img}
             </a>
+        ) : (
+            img
+        );
+        return (
+            <div style={{ width: `${phonePct}%`, ...alignStyle(align) }}>
+                {clickable}
+            </div>
         );
     };
 
@@ -165,12 +196,15 @@ export function PreviewHeader({
                         {renderPhoneNode()}
                     </div>
                 ) : hasLogo ? (
+                    // 단독 표시 — outer justify 는 컨테이너 폭 < 100% 일 때, 컨테이너
+                    // 내부 flex(align 전달) 는 폭 = 100% 일 때 정렬을 담당. 두 층 모두 같은
+                    // 값이라 어느 사이즈에서도 좌/중/우가 일관되게 적용됨.
                     <div
                         className={`w-full flex items-center ${justifyOf(
                             s.header.logoAlign,
                         )}`}
                     >
-                        {renderLogoNode()}
+                        {renderLogoNode(s.header.logoAlign)}
                     </div>
                 ) : hasPhoneImg ? (
                     <div
@@ -178,7 +212,7 @@ export function PreviewHeader({
                             s.header.phoneAlign,
                         )}`}
                     >
-                        {renderPhoneNode()}
+                        {renderPhoneNode(s.header.phoneAlign)}
                     </div>
                 ) : (
                     <div className="w-full flex items-center justify-between">

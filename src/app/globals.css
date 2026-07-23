@@ -29,7 +29,7 @@
   font-weight: 45 920;
   font-style: normal;
   font-display: swap;
-  src: url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/woff2/PretendardVariable.woff2")
+  src: url("https://cdn.jsdelivr.net/npm/pretendard/dist/web/variable/woff2/PretendardVariable.woff2")
     format("woff2-variations");
 }
 

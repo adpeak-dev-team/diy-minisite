@@ -200,12 +200,12 @@ function SettingPageInner() {
             ? { status: "loading" }
             : settingsQuery.isError
                 ? {
-                      status: "error",
-                      message:
-                          settingsQuery.error instanceof Error
-                              ? settingsQuery.error.message
-                              : String(settingsQuery.error),
-                  }
+                    status: "error",
+                    message:
+                        settingsQuery.error instanceof Error
+                            ? settingsQuery.error.message
+                            : String(settingsQuery.error),
+                }
                 : { status: "ready" };
 
     // 가이드를 열면 편집 내용과 무관하게 시연용 예시(풀옵션 템플릿 + 예시 이미지/마감일)로
@@ -298,7 +298,7 @@ function SettingPageInner() {
             const ok = await confirm({
                 title: `'${tpl.name}' 템플릿을 적용할까요?`,
                 message:
-                    "현재 편집 중인 내용이 템플릿으로 교체됩니다. 되돌릴 수 없습니다.",
+                    "현재 편집 중인 내용은 초기화되며 해당 템플릿으로 교체됩니다. 되돌릴 수 없습니다.",
                 confirmLabel: "적용",
                 danger: true,
             });
@@ -440,223 +440,221 @@ function SettingPageInner() {
 
     return (
         <AutoFocusContext.Provider value={autoFocus}>
-        <DomainContext.Provider value={domain ?? ""}>
-            <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 suit overflow-hidden">
-                <GuideButton
-                    onClick={() => {
-                        // 편집 중 열 수 있으므로 현재 편집 상태를 스냅샷 후 연다.
-                        preGuideRef.current = s;
-                        setGuideOpen(true);
-                    }}
-                />
-                <GuideTour
-                    open={guideOpen}
-                    onClose={closeGuide}
-                    onLocate={(loc) => {
-                        if (!loc) return;
-                        if (loc.pane) setPane(loc.pane);
-                        if (loc.tab) setActiveTab(loc.tab as TabKey);
-                        // 단계마다 미리보기 크기를 지정값(없으면 PC)으로 되돌린다.
-                        // → 2단계에서 모바일을 골라도 다음 단계는 PC로 진행.
-                        setMode(loc.mode ?? "pc");
-                        if (loc.open) {
-                            // 해당 아코디언을 열어 내용을 펼쳐 보여준다(미리보기 클릭과 동일 경로).
-                            focusNonceRef.current += 1;
-                            setEditorFocus({
-                                anchor: loc.open,
-                                nonce: focusNonceRef.current,
-                            });
-                        }
-                        // 기능 토글: 이 단계에서 소개하는 것만 켜고, 나머지 데모 기능은
-                        // 꺼서 미리보기에 '한 번에 하나씩'만 보이게 한다. 또한 켠 기능의
-                        // 콘텐츠가 비어 있으면(서버의 기존 사이트 등) 데모 값으로 채워 실제로 보이게.
-                        setS((prev) => {
-                            const enabled = { ...prev.enabled };
-                            const on = new Set(loc.enable ?? []);
-                            let changed = false;
-                            for (const k of GUIDE_FEATURE_FLAGS) {
-                                const want = on.has(k);
-                                if (enabled[k] !== want) {
-                                    enabled[k] = want;
-                                    changed = true;
-                                }
+            <DomainContext.Provider value={domain ?? ""}>
+                <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 suit overflow-hidden">
+                    <GuideButton
+                        onClick={() => {
+                            // 편집 중 열 수 있으므로 현재 편집 상태를 스냅샷 후 연다.
+                            preGuideRef.current = s;
+                            setGuideOpen(true);
+                        }}
+                    />
+                    <GuideTour
+                        open={guideOpen}
+                        onClose={closeGuide}
+                        onLocate={(loc) => {
+                            if (!loc) return;
+                            if (loc.pane) setPane(loc.pane);
+                            if (loc.tab) setActiveTab(loc.tab as TabKey);
+                            // 단계마다 미리보기 크기를 지정값(없으면 PC)으로 되돌린다.
+                            // → 2단계에서 모바일을 골라도 다음 단계는 PC로 진행.
+                            setMode(loc.mode ?? "pc");
+                            if (loc.open) {
+                                // 해당 아코디언을 열어 내용을 펼쳐 보여준다(미리보기 클릭과 동일 경로).
+                                focusNonceRef.current += 1;
+                                setEditorFocus({
+                                    anchor: loc.open,
+                                    nonce: focusNonceRef.current,
+                                });
                             }
-                            const next = changed ? { ...prev, enabled } : prev;
-                            return fillGuideFeatureContent(next, loc.enable ?? []);
-                        });
-                    }}
-                    onDemoEdit={handleEditPart}
-                />
-                {/* Mobile-only pane toggle */}
-                <div className="lg:hidden shrink-0 px-3 py-2 bg-white border-b border-slate-200 flex justify-center">
-                    <PaneTabs pane={pane} onChange={setPane} />
-                </div>
-
-                {/* Left: Preview */}
-                <div
-                    className={`${
-                        pane === "preview" ? "flex" : "hidden"
-                    } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col items-center p-4 sm:p-6 overflow-auto`}
-                >
-                    <div className="flex flex-col items-center gap-5 my-auto w-full">
-                        <PreviewClickHint />
-                        {/* 작은 화면에선 토글을 숨기고 모바일 미리보기만 보여준다. */}
-                        {!isCompact ? (
-                            <div data-guide="preview-mode">
-                                <PreviewModeToggle mode={mode} onChange={setMode} />
-                            </div>
-                        ) : null}
-                        <div data-guide="preview" className="w-full flex justify-center">
-                            <Preview
-                                s={s}
-                                mode={effectiveMode}
-                                compact={isCompact}
-                                currentPageId={currentPageId}
-                                onNavigate={selectPage}
-                                onEditPart={handleEditPart}
-                            />
-                        </div>
-                        <div data-guide="autofocus">
-                            <AutoFocusToggle
-                                value={autoFocus}
-                                onChange={setAutoFocus}
-                            />
-                        </div>
+                            // 기능 토글: 이 단계에서 소개하는 것만 켜고, 나머지 데모 기능은
+                            // 꺼서 미리보기에 '한 번에 하나씩'만 보이게 한다. 또한 켠 기능의
+                            // 콘텐츠가 비어 있으면(서버의 기존 사이트 등) 데모 값으로 채워 실제로 보이게.
+                            setS((prev) => {
+                                const enabled = { ...prev.enabled };
+                                const on = new Set(loc.enable ?? []);
+                                let changed = false;
+                                for (const k of GUIDE_FEATURE_FLAGS) {
+                                    const want = on.has(k);
+                                    if (enabled[k] !== want) {
+                                        enabled[k] = want;
+                                        changed = true;
+                                    }
+                                }
+                                const next = changed ? { ...prev, enabled } : prev;
+                                return fillGuideFeatureContent(next, loc.enable ?? []);
+                            });
+                        }}
+                        onDemoEdit={handleEditPart}
+                    />
+                    {/* Mobile-only pane toggle */}
+                    <div className="lg:hidden shrink-0 px-3 py-2 bg-white border-b border-slate-200 flex justify-center">
+                        <PaneTabs pane={pane} onChange={setPane} />
                     </div>
-                </div>
 
-                {/* Right: Editor */}
-                <div
-                    className={`${
-                        pane === "editor" ? "flex" : "hidden"
-                    } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col bg-white`}
-                >
-                    <div className="shrink-0">
-                        <div className="px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <h1 className="text-sm sm:text-base font-semibold text-slate-900 truncate">
-                                    랜딩페이지 편집
-                                    {domain ? (
-                                        <span className="ml-2 font-mono text-xs text-slate-500">
-                                            · {domain}
-                                        </span>
-                                    ) : null}
-                                </h1>
-                                <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
-                                    {domain
-                                        ? "수정 후 저장 시 해당 도메인 데이터로 반영됩니다."
-                                        : "좌측 미리보기로 결과를 즉시 확인할 수 있습니다"}
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <select
-                                    className="input-base text-xs appearance-none bg-white bg-no-repeat pr-7 bg-position-[right_0.5rem_center]"
-                                    style={{
-                                        backgroundImage:
-                                            "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")",
-                                    }}
-                                    value=""
-                                    onChange={(e) => {
-                                        const v = e.target.value;
-                                        e.currentTarget.value = "";
-                                        if (v) handleApplyTemplate(v);
-                                    }}
-                                    title="템플릿을 골라 편집을 시작하세요"
-                                >
-                                    <option value="">＋ 템플릿 선택</option>
-                                    {TEMPLATES.map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                            {t.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
-                                    onClick={handleReset}
-                                >
-                                    초기화
-                                </button>
-                            </div>
-                        </div>
-                        <div data-guide="tabs">
-                            <EditorTabs
-                                activeTab={activeTab}
-                                onChange={handleTabChange}
-                            />
-                        </div>
-                        {activeTab === "subpages" ? (
-                            <div data-guide="page-selector">
-                                <PageSelector
-                                    subPages={s.subPages}
+                    {/* Left: Preview */}
+                    <div
+                        className={`${pane === "preview" ? "flex" : "hidden"
+                            } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col items-center p-4 sm:p-6 overflow-auto`}
+                    >
+                        <div className="flex flex-col items-center gap-5 my-auto w-full">
+                            <PreviewClickHint />
+                            {/* 작은 화면에선 토글을 숨기고 모바일 미리보기만 보여준다. */}
+                            {!isCompact ? (
+                                <div data-guide="preview-mode">
+                                    <PreviewModeToggle mode={mode} onChange={setMode} />
+                                </div>
+                            ) : null}
+                            <div data-guide="preview" className="w-full flex justify-center">
+                                <Preview
+                                    s={s}
+                                    mode={effectiveMode}
+                                    compact={isCompact}
                                     currentPageId={currentPageId}
-                                    onSelect={selectPage}
+                                    onNavigate={selectPage}
+                                    onEditPart={handleEditPart}
                                 />
                             </div>
-                        ) : null}
-                    </div>
-
-                    <div
-                        data-guide="editor-body"
-                        className="flex-1 min-h-0 min-w-0 overflow-y-auto editor-scroll py-4 px-3 sm:px-4 relative"
-                    >
-                        <EditorFocusContext.Provider value={editorFocus}>
-                            <EditorPanel
-                                s={s}
-                                setS={setS}
-                                currentPageId={currentPageId}
-                                setCurrentPageId={selectPage}
-                                activeTab={activeTab}
-                                setActiveTab={setActiveTab}
-                            />
-                        </EditorFocusContext.Provider>
-                        {load.status === "loading" && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm text-slate-600">
-                                불러오는 중…
+                            <div data-guide="autofocus">
+                                <AutoFocusToggle
+                                    value={autoFocus}
+                                    onChange={setAutoFocus}
+                                />
                             </div>
-                        )}
-                        {load.status === "error" && (
-                            <div className="absolute inset-x-3 top-3 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
-                                <div className="font-medium">
-                                    GET 실패 — 빈 설정으로 시작합니다. 저장은 가능합니다.
-                                </div>
-                                <pre className="mt-1 whitespace-pre-wrap wrap-break-word">
-                                    {load.message}
-                                </pre>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="shrink-0 p-3 border-t border-slate-100 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                            <DraftsMenu
-                                drafts={drafts}
-                                onSave={handleSaveDraft}
-                                onRestore={handleRestoreDraft}
-                                onDelete={handleDeleteDraft}
-                                autosaveAt={
-                                    load.status !== "loading" && restorable
-                                        ? restorable.savedAt
-                                        : null
-                                }
-                                onRestoreAutosave={handleRestoreAutosave}
-                            />
-                            <AutosaveStatus savedAt={autosavedAt} />
                         </div>
-                        <button
-                            type="button"
-                            data-guide="save"
-                            className="btn btn-primary w-full py-3"
-                            onClick={handleSave}
-                            disabled={saving || load.status === "loading"}
-                            title="단축키: Ctrl/⌘ + S"
+                    </div>
+
+                    {/* Right: Editor */}
+                    <div
+                        className={`${pane === "editor" ? "flex" : "hidden"
+                            } lg:flex flex-1 min-h-0 min-w-0 lg:h-screen flex-col bg-white`}
+                    >
+                        <div className="shrink-0">
+                            <div className="px-4 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <h1 className="text-sm sm:text-base font-semibold text-slate-900 truncate">
+                                        랜딩페이지 편집
+                                        {domain ? (
+                                            <span className="ml-2 font-mono text-xs text-slate-500">
+                                                · {domain}
+                                            </span>
+                                        ) : null}
+                                    </h1>
+                                    <p className="hidden sm:block text-xs text-slate-500 mt-0.5">
+                                        {domain
+                                            ? "수정 후 저장 시 해당 도메인 데이터로 반영됩니다."
+                                            : "좌측 미리보기로 결과를 즉시 확인할 수 있습니다"}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <select
+                                        className="input-base text-xs appearance-none bg-white bg-no-repeat pr-7 bg-position-[right_0.5rem_center]"
+                                        style={{
+                                            backgroundImage:
+                                                "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>\")",
+                                        }}
+                                        value=""
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            e.currentTarget.value = "";
+                                            if (v) handleApplyTemplate(v);
+                                        }}
+                                        title="템플릿을 골라 편집을 시작하세요"
+                                    >
+                                        <option value="">＋ 템플릿 선택</option>
+                                        {TEMPLATES.map((t) => (
+                                            <option key={t.id} value={t.id}>
+                                                {t.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        className="btn btn-ghost btn-xs"
+                                        onClick={handleReset}
+                                    >
+                                        초기화
+                                    </button>
+                                </div>
+                            </div>
+                            <div data-guide="tabs">
+                                <EditorTabs
+                                    activeTab={activeTab}
+                                    onChange={handleTabChange}
+                                />
+                            </div>
+                            {activeTab === "subpages" ? (
+                                <div data-guide="page-selector">
+                                    <PageSelector
+                                        subPages={s.subPages}
+                                        currentPageId={currentPageId}
+                                        onSelect={selectPage}
+                                    />
+                                </div>
+                            ) : null}
+                        </div>
+
+                        <div
+                            data-guide="editor-body"
+                            className="flex-1 min-h-0 min-w-0 overflow-y-auto editor-scroll py-4 px-3 sm:px-4 relative"
                         >
-                            {saving ? "저장 중…" : "저장 (⌘S)"}
-                        </button>
+                            <EditorFocusContext.Provider value={editorFocus}>
+                                <EditorPanel
+                                    s={s}
+                                    setS={setS}
+                                    currentPageId={currentPageId}
+                                    setCurrentPageId={selectPage}
+                                    activeTab={activeTab}
+                                    setActiveTab={setActiveTab}
+                                />
+                            </EditorFocusContext.Provider>
+                            {load.status === "loading" && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm text-slate-600">
+                                    불러오는 중…
+                                </div>
+                            )}
+                            {load.status === "error" && (
+                                <div className="absolute inset-x-3 top-3 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                                    <div className="font-medium">
+                                        GET 실패 — 빈 설정으로 시작합니다. 저장은 가능합니다.
+                                    </div>
+                                    <pre className="mt-1 whitespace-pre-wrap wrap-break-word">
+                                        {load.message}
+                                    </pre>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="shrink-0 p-3 border-t border-slate-100 space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                                <DraftsMenu
+                                    drafts={drafts}
+                                    onSave={handleSaveDraft}
+                                    onRestore={handleRestoreDraft}
+                                    onDelete={handleDeleteDraft}
+                                    autosaveAt={
+                                        load.status !== "loading" && restorable
+                                            ? restorable.savedAt
+                                            : null
+                                    }
+                                    onRestoreAutosave={handleRestoreAutosave}
+                                />
+                                <AutosaveStatus savedAt={autosavedAt} />
+                            </div>
+                            <button
+                                type="button"
+                                data-guide="save"
+                                className="btn btn-primary w-full py-3"
+                                onClick={handleSave}
+                                disabled={saving || load.status === "loading"}
+                                title="단축키: Ctrl/⌘ + S"
+                            >
+                                {saving ? "저장 중…" : "저장 (⌘S)"}
+                            </button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </DomainContext.Provider>
+            </DomainContext.Provider>
         </AutoFocusContext.Provider>
     );
 }
@@ -699,11 +697,10 @@ function PaneTabButton({
             role="tab"
             aria-selected={active}
             onClick={onClick}
-            className={`px-4 py-1.5 text-xs font-medium rounded-md transition ${
-                active
+            className={`px-4 py-1.5 text-xs font-medium rounded-md transition ${active
                     ? "bg-white shadow text-slate-900"
                     : "text-slate-600 hover:text-slate-900"
-            }`}
+                }`}
         >
             {children}
         </button>
@@ -779,11 +776,10 @@ function ModeButton({
             role="tab"
             aria-selected={active}
             onClick={onClick}
-            className={`px-4 py-1.5 text-xs font-medium rounded-md transition ${
-                active
+            className={`px-4 py-1.5 text-xs font-medium rounded-md transition ${active
                     ? "bg-blue-600 text-white"
                     : "text-slate-600 hover:bg-slate-50"
-            }`}
+                }`}
         >
             {children}
         </button>
