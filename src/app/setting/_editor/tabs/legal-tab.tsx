@@ -4,14 +4,10 @@ import { AccordionSection } from "../../widgets";
 import { useSettings } from "./context";
 
 export function LegalTab() {
-    const { s, update, updateEnabled } = useSettings();
+    const { s, update } = useSettings();
     return (
         <>
-            <AccordionSection
-                title="개인정보 보호동의 전문"
-                enabled={s.enabled.privacy}
-                onToggle={(v) => updateEnabled("privacy", v)}
-            >
+            <AccordionSection title="개인정보 보호동의 전문">
                 <textarea
                     rows={8}
                     className="input-base w-full text-xs"

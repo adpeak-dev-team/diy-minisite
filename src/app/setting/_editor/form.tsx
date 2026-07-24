@@ -195,7 +195,7 @@ export function FormSectionEditor({
             <div className="grid grid-cols-2 gap-3">
                 <ColorField
                     label="배경 색상"
-                    value={data.bgColor ?? "#F8FAFC"}
+                    value={data.bgColor ?? "#FFFFFF"}
                     onChange={(v) => patchData({ bgColor: v })}
                 />
                 <ColorField

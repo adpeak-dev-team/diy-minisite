@@ -128,9 +128,23 @@ export function EditorPanel({
     const pageSections: Section[] = currentSubPage
         ? currentSubPage.sections
         : s.sections;
+    // 섹션을 추가했는데 '섹션 표시' 토글이 꺼져 있으면(빈 도메인 로드 시 기본값 off)
+    // 자동으로 켠다 — 안 그러면 추가한 섹션이 미리보기에 안 보여 혼란스럽다.
+    const enableSectionsIfNeeded = (
+        prev: Settings,
+        next: Section[],
+    ): Settings["enabled"] =>
+        next.length > 0 && !prev.enabled.sections
+            ? { ...prev.enabled, sections: true }
+            : prev.enabled;
+
     const setPageSections = (next: Section[]) => {
         if (!currentPageId) {
-            update("sections", next);
+            setS((prev) => ({
+                ...prev,
+                sections: next,
+                enabled: enableSectionsIfNeeded(prev, next),
+            }));
             return;
         }
         setS((prev) => ({
@@ -139,6 +153,7 @@ export function EditorPanel({
                 ...p,
                 sections: next,
             })),
+            enabled: enableSectionsIfNeeded(prev, next),
         }));
     };
 
@@ -168,7 +183,13 @@ export function EditorPanel({
                         currentSubPage={null}
                         parentSubPage={null}
                         pageSections={s.sections}
-                        setPageSections={(next) => update("sections", next)}
+                        setPageSections={(next) =>
+                            setS((prev) => ({
+                                ...prev,
+                                sections: next,
+                                enabled: enableSectionsIfNeeded(prev, next),
+                            }))
+                        }
                     />
                 )}
                 {activeTab === "menu" && <MenuTab />}
