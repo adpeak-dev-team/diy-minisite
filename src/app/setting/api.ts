@@ -3,6 +3,7 @@ import {
   initialSettings,
   LegacyContentItem,
   Section,
+  SectionAnimation,
   Settings,
   SubPage,
 } from "./types";
@@ -27,6 +28,28 @@ function asError(body: unknown): string {
 
 function asString(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
+}
+
+// 나타나는 효과(섹션 애니메이션) 라운드트립.
+// 라이브 사이트는 on/off(`effect`)만 이해하므로 그건 계속 쓰되,
+// 구체적 종류(slide-up · zoom-in 등)는 신규 키 `effectType` 로 별도 저장/복원한다.
+const ANIMATION_VALUES: SectionAnimation[] = [
+  "none",
+  "fade-in",
+  "slide-up",
+  "slide-right",
+  "slide-left",
+  "zoom-in",
+  "zoom-out",
+];
+
+function parseAnimation(rec: Record<string, unknown>): SectionAnimation {
+  const t = asString(rec.effectType);
+  if (t && (ANIMATION_VALUES as string[]).includes(t)) {
+    return t as SectionAnimation;
+  }
+  // 구버전 데이터: 종류 정보 없음 → on 이면 페이드인으로 폴백
+  return asString(rec.effect) === "on" ? "fade-in" : "none";
 }
 
 function tryParseJson(v: unknown): unknown {
@@ -57,7 +80,7 @@ function contentListToSections(contentList: unknown[]): Section[] {
   contentList.forEach((item, idx) => {
     const rec = pickRecord(item);
     const sourceItem: LegacyContentItem = rec;
-    const animated = asString(rec.effect) === "on" ? "fade-in" : "none";
+    const animated = parseAnimation(rec);
 
     if (Array.isArray(rec.imgList) && rec.imgList.length > 0) {
       const images: GalleryImage[] = rec.imgList.flatMap((img, i) => {
@@ -158,7 +181,7 @@ function contentListToSections(contentList: unknown[]): Section[] {
 function menuToSubPage(menu: unknown, index: number): SubPage {
   const rec = pickRecord(menu);
   const imgArr = Array.isArray(rec.imgArr) ? rec.imgArr : [];
-  const animated = asString(rec.effect) === "on" ? "fade-in" : "none";
+  const animated = parseAnimation(rec);
   const images: GalleryImage[] = imgArr.flatMap((u, i) => {
     const url = asString(u);
     if (!url) return [];
@@ -595,7 +618,8 @@ function settingsToHeaderJson(s: Settings): string {
     header_color: s.header.color,
     phone_img: stripAssetBase(s.header.phoneImage),
     top_phone_width: s.header.phoneSize,
-    phone_num: s.header.phoneNumber,
+    // 상단 전용 번호가 비어 있으면 공용(하단 대표) 번호로 폴백 — 미리보기와 동일하게
+    phone_num: s.header.phoneNumber || s.footer.phone,
     menu_enabled: s.header.menuEnabled,
   });
 }
@@ -645,11 +669,17 @@ function settingsToMenusJson(s: Settings): string {
             imgArr: subPageToImgArr(c),
           }))
         : [];
+      // 서브페이지 갤러리의 '나타나는 효과' 도 on/off + 종류로 저장.
+      const anim =
+        subPage?.sections.find((sec) => sec.type === "gallery")?.animation ??
+        "none";
       return {
         ...sourceMenu,
         name: item.name,
         link: item.link,
         imgArr: subPageToImgArr(subPage),
+        effect: anim !== "none" ? "on" : "off",
+        effectType: anim,
         ...(children.length > 0 ? { children } : {}),
       };
     }),
@@ -730,6 +760,7 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
       align: "center",
       effect:
         gallerySec.animation && gallerySec.animation !== "none" ? "on" : "off",
+      effectType: gallerySec.animation ?? "none",
     };
   }
 
@@ -751,6 +782,7 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
       })),
       align: "center",
       effect: first.animation && first.animation !== "none" ? "on" : "off",
+      effectType: first.animation ?? "none",
     };
   }
 
@@ -833,7 +865,8 @@ export function settingsToLand(s: Settings): LandPatch {
     ld_mobile_bt_event_img: stripAssetBase(s.bottomFixed.consult.image),
     ld_consent_info: s.privacyPolicy,
     ld_complete_msg: s.completeMessage,
-    ld_personal_info_view: s.enabled.privacy ? "on" : "off",
+    // 개인정보 전문 노출 토글은 편집기에서 제거됨(폼에서 자동 연동) → 항상 on 으로 저장
+    ld_personal_info_view: "on",
     ld_footer: reconstructFooterLine(s),
     ld_ft_name: s.footer.ceo,
     ld_ft_phone: s.footer.phone,

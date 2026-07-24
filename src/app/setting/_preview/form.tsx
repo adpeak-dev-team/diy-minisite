@@ -55,7 +55,7 @@ export function FormBlock({
             : variant === "custom"
               ? "신청 양식"
               : "빠른상담신청");
-    const bgColor = data.bgColor || "#F8FAFC";
+    const bgColor = data.bgColor || "#FFFFFF";
     const cardBg = data.cardBgColor || "#FFFFFF";
     const fg = data.textColor || "#334155";
     const buttonBg = data.buttonColor || "#2563EB";

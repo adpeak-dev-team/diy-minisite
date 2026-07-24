@@ -46,7 +46,9 @@ export function BottomFixedEditor({
                 slot={value.phone}
                 onChange={(phone) => onChange({ ...value, phone })}
                 enabledCount={enabledCount(value)}
-                onHeightChange={(height) => onChange({ ...value, height })}
+                onImageHeight={(phone, height) =>
+                    onChange({ ...value, phone, height })
+                }
                 linkManaged
             />
             <BottomSlotEditor
@@ -54,7 +56,9 @@ export function BottomFixedEditor({
                 slot={value.consult}
                 onChange={(consult) => onChange({ ...value, consult })}
                 enabledCount={enabledCount(value)}
-                onHeightChange={(height) => onChange({ ...value, height })}
+                onImageHeight={(consult, height) =>
+                    onChange({ ...value, consult, height })
+                }
                 allowFormShortcut={hasForm}
             />
         </div>
@@ -76,7 +80,7 @@ function BottomSlotEditor({
     slot,
     onChange,
     enabledCount: count,
-    onHeightChange,
+    onImageHeight,
     allowFormShortcut = false,
     linkManaged = false,
 }: {
@@ -84,7 +88,12 @@ function BottomSlotEditor({
     slot: Settings["bottomFixed"]["phone"];
     onChange: (next: Settings["bottomFixed"]["phone"]) => void;
     enabledCount: number;
-    onHeightChange: (height: string) => void;
+    // 이미지+높이를 한 번의 상위 업데이트로 원자적으로 반영 (개별 갱신 시 옛 value
+    // 스프레드가 방금 넣은 이미지를 덮어쓰는 문제를 피함).
+    onImageHeight: (
+        next: Settings["bottomFixed"]["phone"],
+        height: string,
+    ) => void;
     allowFormShortcut?: boolean;
     // true 면 링크를 기본정보의 대표 전화번호로 자동 연결 — 수동 링크 입력 숨김.
     linkManaged?: boolean;
@@ -95,6 +104,7 @@ function BottomSlotEditor({
     // 이미지 업로드 시 자연 비율을 읽어 바 높이를 자동 조정.
     // 슬롯 폭 = 모바일 폭(320) / 활성 슬롯 수.
     const handleImageUpload = (next: string | null) => {
+        const nextSlot = { ...slot, image: next };
         patch({ image: next });
         if (!next || typeof window === "undefined") return;
         const img = new window.Image();
@@ -105,7 +115,8 @@ function BottomSlotEditor({
                 (slotW / img.naturalWidth) * img.naturalHeight,
             );
             const clamped = Math.max(HEIGHT_MIN, Math.min(HEIGHT_MAX, computed));
-            onHeightChange(String(clamped));
+            // 이미지와 높이를 함께 실어 보내 이미지가 지워지지 않게 함.
+            onImageHeight(nextSlot, String(clamped));
         };
         img.src = next;
     };

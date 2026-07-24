@@ -113,7 +113,11 @@ export function PreviewHeader({
                 style={{ maxWidth: "100%", height: "auto", display: "block" }}
             />
         );
-        const tel = s.header.phoneNumber.replace(/[^0-9+]/g, "");
+        // 상단 전용 번호가 있으면 우선, 없으면 공용(하단 대표) 번호로 폴백
+        const tel = (s.header.phoneNumber || s.footer.phone).replace(
+            /[^0-9+]/g,
+            "",
+        );
         const clickable = tel ? (
             <a href={`tel:${tel}`} className="block" style={{ maxWidth: "100%" }}>
                 {img}

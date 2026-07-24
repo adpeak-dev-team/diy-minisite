@@ -32,7 +32,7 @@ export function InfoSubTab() {
     const setRepPhone = (v: string) => {
         const tel = v.replace(/[^0-9+]/g, "");
         update("footer", { ...s.footer, phone: v });
-        updateHeader("phoneNumber", v);
+        // 상단 전화는 별도 '상단 전용 번호'로 관리 → 비어 있을 때만 이 공용 번호로 폴백
         update("quickConnect", {
             ...s.quickConnect,
             sms: { ...s.quickConnect.sms, phone: v },
@@ -80,8 +80,8 @@ export function InfoSubTab() {
                     />
                 </Field>
                 <Field
-                    label="대표 전화번호"
-                    hint="하단 대표번호 · 상단 전화 · 모바일 하단 · 문자 발송에 모두 적용됩니다"
+                    label="전화번호"
+                    hint="하단 대표번호 · 모바일 하단 · 문자 발송에 적용됩니다"
                 >
                     <input
                         type="tel"
@@ -90,6 +90,21 @@ export function InfoSubTab() {
                         placeholder="010-0000-0000"
                         value={s.footer.phone}
                         onChange={(e) => setRepPhone(e.target.value)}
+                    />
+                </Field>
+                <Field
+                    label="대표 전화번호 (상단 전화 전용)"
+                    hint="상단 전화번호 이미지 클릭 시 연결됩니다. 비워두면 위 전화번호가 사용됩니다"
+                >
+                    <input
+                        type="tel"
+                        inputMode="tel"
+                        className="input-base w-full"
+                        placeholder="비워두면 위 전화번호 사용"
+                        value={s.header.phoneNumber}
+                        onChange={(e) =>
+                            updateHeader("phoneNumber", e.target.value)
+                        }
                     />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
@@ -321,7 +336,7 @@ export function HeaderSubTab() {
                     </div>
                     {s.header.phoneImage ? (
                         <div className="text-[11px] text-slate-400 mt-2">
-                            클릭 시 <b>기본정보</b>의 대표 전화번호로 연결됩니다.
+                            클릭 시 <b>기본정보</b>의 전화번호로 연결됩니다.
                         </div>
                     ) : null}
                 </Field>
@@ -514,7 +529,7 @@ export function FixedSubTab() {
                         />
                     </div>
                 </Field>
-                <Field label="문자 보내기" hint="대표 전화번호로 발송됩니다 (기본정보에서 변경)">
+                <Field label="문자 보내기" hint="기본정보에 입력된 전화번호로 발송됩니다 ">
                     <label className="flex items-center gap-2 cursor-pointer">
                         <Toggle
                             on={s.quickConnect.sms.enabled}

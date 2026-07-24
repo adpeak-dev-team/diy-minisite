@@ -26,6 +26,20 @@ export const EditorFocusContext = createContext<EditorFocus>(null);
 // 빈 문자열이면 업로드 불가 (도메인 로드 전 / no-domain 모드).
 export const DomainContext = createContext<string>("");
 
+// 로컬 개발 편의: 백엔드/도메인 없이도 이미지 '삽입'만 눈으로 확인하고 싶을 때
+// 파일을 data URL 로 읽어 미리보기에 바로 넣는다. 프로덕션에서는 동작하지 않는다.
+function fileToDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () =>
+            reject(reader.error ?? new Error("파일 읽기 실패"));
+        reader.readAsDataURL(file);
+    });
+}
+
+const DEV_LOCAL_IMAGE = process.env.NODE_ENV !== "production";
+
 export function Toggle({
     on,
     onChange,
@@ -106,10 +120,14 @@ export function AccordionSection({
         if (!focus || !anchor || focus.anchor !== anchor) return;
         // 같은 focus(nonce)를 이미 처리했으면(=탭 전환으로 재마운트된 경우) 무시.
         if (handledFocusNonce.get(anchor) === focus.nonce) return;
-        handledFocusNonce.set(anchor, focus.nonce);
         let clearTimer = 0;
         // 렌더/탭 전환 직후일 수 있어 다음 틱에 실행 (동기 setState 회피).
         const openTimer = window.setTimeout(() => {
+            // "처리됨" 기록은 실제로 여는 이 시점에 한다. effect 본문에서 미리
+            // 기록하면 StrictMode 의 mount→cleanup→mount 이중 호출 때 첫 타이머가
+            // 취소된 뒤 두 번째 호출이 '이미 처리됨'으로 건너뛰어 아코디언이 끝내
+            // 안 열린다(=가이드 7단계 대상이 마운트되지 않아 카드가 중앙에 뜸).
+            handledFocusNonce.set(anchor, focus.nonce);
             setOpen(true);
             if (!focusScroll) return; // 열기만 하고 강조는 내부(섹션)에 위임
             const el = rowRef.current;
@@ -623,6 +641,12 @@ export function ImageUploader({
         e.target.value = "";
         if (files.length === 0) return;
         if (!domain) {
+            if (DEV_LOCAL_IMAGE) {
+                // 로컬 테스트: 도메인/백엔드 없이 data URL 로 미리보기만
+                setError(null);
+                onChange(await fileToDataUrl(files[0]));
+                return;
+            }
             setError("도메인 정보가 없어 업로드할 수 없습니다.");
             return;
         }
@@ -755,6 +779,12 @@ export function MultiImagePicker({
         e.target.value = "";
         if (files.length === 0) return;
         if (!domain) {
+            if (DEV_LOCAL_IMAGE) {
+                // 로컬 테스트: 도메인/백엔드 없이 data URL 로 미리보기만
+                setError(null);
+                onPick(await Promise.all(files.map(fileToDataUrl)));
+                return;
+            }
             setError("도메인 정보가 없어 업로드할 수 없습니다.");
             return;
         }

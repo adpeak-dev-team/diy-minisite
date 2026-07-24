@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# 백엔드 (crm_back_sample) — 자체 git 저장소로 별도 관리, 프론트 git 에선 무시
+/back/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
