@@ -14,6 +14,8 @@ import {
 import {
     BottomFixedBar,
     FixedImageFloating,
+    FLOAT_BUTTON_SIZE_MOBILE,
+    FLOAT_BUTTON_SIZE_PC,
     PopupOverlay,
     QuickConnectButtons,
 } from "./overlays";
@@ -124,7 +126,7 @@ function PCPreview({
     const headerPx = parsePxOr(s.header.padding, 12);
     // PC 에는 "모바일 하단 고정" 바가 노출되지 않으므로 floating 오프셋은 기본값만.
     const bottomOffset = 16;
-    const orderedSections = expandFixedForms(sections);
+    const orderedSections = orderFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
@@ -211,17 +213,20 @@ function PCPreview({
                     <CountdownFloating s={s} pc bottomOffset={0} />
                 ) : null}
                 {s.enabled.quickConnect ? (
-                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                    <QuickConnectButtons
+                        s={s}
+                        bottomOffset={bottomOffset}
+                        size={FLOAT_BUTTON_SIZE_PC}
+                    />
                 ) : null}
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
                         effect={s.info.fixedImageEffect}
+                        size={FLOAT_BUTTON_SIZE_PC}
                         bottomOffset={
                             bottomOffset +
-                            (quickConnectStackHeight(s) > 0
-                                ? quickConnectStackHeight(s) + 10
-                                : 0)
+                            stackGap(s, FLOAT_BUTTON_SIZE_PC)
                         }
                         link={s.info.fixedImageLink}
                         linkType={s.info.fixedImageLinkType}
@@ -258,7 +263,7 @@ function MobilePreview({
     // 바가 실측값을 올려주면 그걸 따른다.
     const [barH, setBarH] = useState(() => parsePxOr(s.bottomFixed.height, 64));
     const bottomOffset = s.enabled.bottomFixed ? barH : 0;
-    const orderedSections = expandFixedForms(sections);
+    const orderedSections = orderFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
@@ -346,17 +351,20 @@ function MobilePreview({
                     <CountdownFloating s={s} bottomOffset={bottomOffset} />
                 ) : null}
                 {s.enabled.quickConnect ? (
-                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                    <QuickConnectButtons
+                        s={s}
+                        bottomOffset={bottomOffset}
+                        size={FLOAT_BUTTON_SIZE_MOBILE}
+                    />
                 ) : null}
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
                         effect={s.info.fixedImageEffect}
+                        size={FLOAT_BUTTON_SIZE_MOBILE}
                         bottomOffset={
                             bottomOffset +
-                            (quickConnectStackHeight(s) > 0
-                                ? quickConnectStackHeight(s) + 10
-                                : 0)
+                            stackGap(s, FLOAT_BUTTON_SIZE_MOBILE)
                         }
                         link={s.info.fixedImageLink}
                         linkType={s.info.fixedImageLinkType}
@@ -397,10 +405,10 @@ function PageBody({
     );
 }
 
-// expandFixedForms / resolveSections 가 붙이는 접미사(__bottom-dup, __from-main)를
-// 제거해 원본 섹션 id 로 되돌린다 (편집 대상 매칭용).
+// resolveSections 가 붙이는 접미사(__from-main)를 제거해 원본 섹션 id 로 되돌린다
+// (편집 대상 매칭용). orderFixedForms 는 섹션을 옮기기만 하므로 id 를 안 바꾼다.
 function baseSectionId(id: string): string {
-    return id.replace(/__(bottom-dup|from-main)$/, "");
+    return id.replace(/__from-main$/, "");
 }
 
 // 헤더 "스크롤 상호작용" 모드용 상단 고정 오버레이.
@@ -490,7 +498,7 @@ export function LiveSite({
     const sections = resolveSections(s, currentPageId);
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
-    const orderedSections = expandFixedForms(sections);
+    const orderedSections = orderFixedForms(sections);
     const isInteraction =
         s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
@@ -507,6 +515,8 @@ export function LiveSite({
     const [barH, setBarH] = useState(() => parsePxOr(s.bottomFixed.height, 64));
     // 떠 있는 버튼들을 하단바 위로 올리는 오프셋 — 바가 없으면 0.
     const bottomOffset = showBottomFixed ? barH : 0;
+    // 떠 있는 원형 버튼 지름 — 좁은 화면에선 60px, 넓은 화면에선 90px.
+    const floatSize = pc ? FLOAT_BUTTON_SIZE_PC : FLOAT_BUTTON_SIZE_MOBILE;
 
     return (
         // 스크롤 주체는 body(문서) — 내부 div 를 스크롤러로 두지 않는다.
@@ -590,18 +600,18 @@ export function LiveSite({
             {/* 화면(body) 기준 — 칼럼 폭에 매이지 않고 viewport 우측 하단에 붙는다. */}
             <div className="live-overlay-layer fixed inset-0 z-40 pointer-events-none">
                 {s.enabled.quickConnect ? (
-                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                    <QuickConnectButtons
+                        s={s}
+                        bottomOffset={bottomOffset}
+                        size={floatSize}
+                    />
                 ) : null}
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
                         effect={s.info.fixedImageEffect}
-                        bottomOffset={
-                            bottomOffset +
-                            (quickConnectStackHeight(s) > 0
-                                ? quickConnectStackHeight(s) + 10
-                                : 0)
-                        }
+                        size={floatSize}
+                        bottomOffset={bottomOffset + stackGap(s, floatSize)}
                         link={s.info.fixedImageLink}
                         linkType={s.info.fixedImageLinkType}
                     />
@@ -612,16 +622,20 @@ export function LiveSite({
 }
 
 // QuickConnect 스택의 세로 픽셀 높이 — FixedImage 를 그 위로 올리려고 계산.
-// (overlays.tsx 의 버튼 크기 w-22.5/h-22.5 = 90px, gap-2.5 = 10px 와 동기화)
-const QUICK_BUTTON_SIZE = 90;
-
-function quickConnectStackHeight(s: Settings): number {
+// (overlays.tsx 의 버튼 지름과 gap-2.5 = 10px 를 그대로 반영)
+function quickConnectStackHeight(s: Settings, size: number): number {
     if (!s.enabled.quickConnect) return 0;
     let n = 0;
     if (s.quickConnect.kakao.enabled && s.quickConnect.kakao.url) n++;
     if (s.quickConnect.sms.enabled && s.quickConnect.sms.phone) n++;
     if (n === 0) return 0;
-    return n * QUICK_BUTTON_SIZE + (n - 1) * 10;
+    return n * size + (n - 1) * 10;
+}
+
+// 퀵버튼 스택이 있으면 그 높이 + 간격만큼 FixedImage 를 더 올린다. 없으면 0.
+function stackGap(s: Settings, size: number): number {
+    const h = quickConnectStackHeight(s, size);
+    return h > 0 ? h + 10 : 0;
 }
 
 // 부모 서브페이지의 children 을 그리드로 노출해 자식 페이지로 이동시키는 네비.
@@ -711,26 +725,31 @@ function ChildPagesNav({
 }
 
 // fixedBottom === "fixed" 인 form 섹션의 노출 규칙:
-// - 원래 위치 그대로 유지
-// - 단, 페이지 마지막에 위치한 경우가 아니면 동일한 폼을 페이지 하단에도 복제해서 노출
-//   (i.e. 중간에 있는 fixed 폼은 원래 위치 + 하단, 2번 나옴)
-// - 폼 바로 앞의 '문의 버튼 이미지'도 함께 복제한다. 옛 데이터에선 이 둘이 contentList
-//   한 항목(formInviteImg + formList)에서 갈라져 나온 짝이라, 폼만 복제하면 하단 사본이
-//   원위치와 다른 모습이 된다.
-function expandFixedForms(sections: Section[]): Section[] {
-    const dups: Section[] = [];
+// 옛 렌더러는 이걸 '이 폼을 페이지 맨 아래에 둔다'로 해석해서, 원래 위치에서 빼내
+// 하단으로 **옮긴다**. 복제가 아니다 — 복제하면 같은 폼이 두 번 나온다.
+// 폼 바로 앞의 '문의 버튼 이미지'는 옛 데이터에서 같은 contentList 항목
+// (formInviteImg + formList)이 갈라져 나온 짝이므로 함께 옮긴다.
+//
+// 예: dusan 의 contentList = [이미지, 폼A(nonfixed), 폼B(fixed), 이미지16장]
+//   → 이미지 · 문의이미지A · 폼A · 이미지16장 · 문의이미지B · 폼B
+function orderFixedForms(sections: Section[]): Section[] {
+    const movedIdx = new Set<number>();
+    const tail: Section[] = [];
     sections.forEach((sec, i) => {
         const isFixed =
             sec.type === "form" && sec.formData?.fixedBottom === "fixed";
-        if (!isFixed || i >= sections.length - 1) return;
+        if (!isFixed) return;
         const prev = i > 0 ? sections[i - 1] : undefined;
         if (
             prev?.legacy?.role === "form-invite" &&
             prev.legacy.contentListIndex === sec.legacy?.contentListIndex
         ) {
-            dups.push({ ...prev, id: `${prev.id}__bottom-dup` });
+            movedIdx.add(i - 1);
+            tail.push(prev);
         }
-        dups.push({ ...sec, id: `${sec.id}__bottom-dup` });
+        movedIdx.add(i);
+        tail.push(sec);
     });
-    return [...sections, ...dups];
+    if (tail.length === 0) return sections;
+    return [...sections.filter((_, i) => !movedIdx.has(i)), ...tail];
 }

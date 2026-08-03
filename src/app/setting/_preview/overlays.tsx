@@ -23,8 +23,20 @@ export function BottomFixedBar({
     // 설정값이 아니라 이 실측값으로 잡아야 바가 내용을 가리지 않는다.
     onHeight?: (h: number) => void;
 }) {
-    const slots: BottomSlot[] = [s.bottomFixed.phone, s.bottomFixed.consult].filter(
-        (slot) => slot.enabled,
+    // 이미지를 못 불러오는 슬롯은 통째로 뺀다.
+    // 옛 DB 엔 파일이 지워졌거나 접근이 막힌 경로가 남은 행이 있다(예: dusan 의
+    // ld_mobile_bt_phone_img → 403). 옛 사이트는 <img> 가 크기 0 이 되며 자연히
+    // 사라져 남은 한 장이 가로를 꽉 채웠는데, 이쪽은 슬롯에 배경색이 깔려 있어
+    // '빈 남색 반쪽'이 남고 살아있는 이미지는 절반으로 찌그러진다.
+    const [broken, setBroken] = useState<Record<string, boolean>>({});
+    const slots = (
+        [
+            ["phone", s.bottomFixed.phone],
+            ["consult", s.bottomFixed.consult],
+        ] as [string, BottomSlot][]
+    ).filter(
+        ([key, slot]) =>
+            slot.enabled && !(slot.mode === "image" && broken[key]),
     );
     const hasSlots = slots.length > 0;
     const ref = useRef<HTMLDivElement>(null);
@@ -67,9 +79,9 @@ export function BottomFixedBar({
             className="absolute inset-x-0 bottom-0 z-20 flex items-stretch border-t border-slate-200"
             style={{ fontFamily: fontFamilyOf(s.bottomFixed.font) }}
         >
-            {slots.map((slot, i) => (
+            {slots.map(([key, slot]) => (
                 <a
-                    key={i}
+                    key={key}
                     href={slot.linkType === "form" ? "#" : slot.link || undefined}
                     onClick={handleSlotClick(slot)}
                     className="flex-1 flex items-center justify-center"
@@ -91,6 +103,9 @@ export function BottomFixedBar({
                             // 가로는 슬롯을 채우고 세로는 원본 비율 유지 (object-cover 로
                             // 잘라내던 예전 동작과 달리 이미지가 통째로 보인다)
                             className="w-full h-auto block"
+                            onError={() =>
+                                setBroken((b) => ({ ...b, [key]: true }))
+                            }
                         />
                     ) : (
                         <span className="text-sm font-medium">{slot.text}</span>
@@ -101,13 +116,25 @@ export function BottomFixedBar({
     );
 }
 
+// 떠 있는 원형 버튼(퀵연결 · 우측 고정 이미지)의 지름.
+// 모바일 60px / PC 90px. CSS 미디어쿼리 대신 prop 으로 받는 이유는 chrome.tsx 의
+// 글자 크기와 같다 — 편집기 모바일 미리보기는 넓은 창 안의 좁은 div 라
+// 뷰포트 기준 미디어쿼리를 쓰면 PC 크기로 나온다. pc 플래그가 유일하게 정확한 기준.
+export const FLOAT_BUTTON_SIZE_MOBILE = 60;
+export const FLOAT_BUTTON_SIZE_PC = 90;
+
 export function QuickConnectButtons({
     s,
     bottomOffset,
+    size = FLOAT_BUTTON_SIZE_MOBILE,
 }: {
     s: Settings;
     bottomOffset: number;
+    size?: number;
 }) {
+    // 아이콘은 버튼 지름에 비례 (60px 기준 카카오 26 · 문자 24 였던 비율 유지)
+    const kakaoIcon = Math.round((size * 26) / 60);
+    const smsIcon = Math.round((size * 24) / 60);
     type Item = {
         label: string;
         bg: string;
@@ -123,7 +150,7 @@ export function QuickConnectButtons({
             fg: "#000",
             href: s.quickConnect.kakao.url,
             icon: (
-                <svg width="39" height="39" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <svg width={kakaoIcon} height={kakaoIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <path d="M12 3C6.48 3 2 6.58 2 11c0 2.83 1.85 5.32 4.65 6.78l-1.2 4.4c-.08.3.23.55.5.39l5.21-3.46c.28.03.55.04.84.04 5.52 0 10-3.58 10-8.15S17.52 3 12 3z" />
                 </svg>
             ),
@@ -137,8 +164,8 @@ export function QuickConnectButtons({
             href: `sms:${s.quickConnect.sms.phone}`,
             icon: (
                 <svg
-                    width="36"
-                    height="36"
+                    width={smsIcon}
+                    height={smsIcon}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -168,8 +195,13 @@ export function QuickConnectButtons({
                     target="_blank"
                     rel="noopener"
                     aria-label={it.label}
-                    className="w-22.5 h-22.5 rounded-full shadow-lg ring-1 ring-black/5 flex items-center justify-center hover:scale-105 active:scale-95 transition"
-                    style={{ background: it.bg, color: it.fg }}
+                    className="rounded-full shadow-lg ring-1 ring-black/5 flex items-center justify-center hover:scale-105 active:scale-95 transition"
+                    style={{
+                        background: it.bg,
+                        color: it.fg,
+                        width: `${size}px`,
+                        height: `${size}px`,
+                    }}
                 >
                     {it.icon}
                 </a>
@@ -200,10 +232,12 @@ export function FixedImageFloating({
     src,
     bottomOffset,
     effect = "none",
+    size = FLOAT_BUTTON_SIZE_MOBILE,
 }: {
     src: string;
     bottomOffset: number;
     effect?: FixedImageEffect;
+    size?: number;
     link?: string;
     linkType?: "url" | "form";
 }) {
@@ -217,8 +251,12 @@ export function FixedImageFloating({
             data-edit="fiximage"
             data-guide="pv-fiximage"
             aria-label="우측 고정 이미지"
-            className={`absolute right-3 z-20 w-22.5 h-22.5 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer transition ${hover} ${FIXED_IMAGE_FX_CLASS[effect]}`}
-            style={{ bottom: `${bottomOffset + 16}px` }}
+            className={`absolute right-3 z-20 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer transition ${hover} ${FIXED_IMAGE_FX_CLASS[effect]}`}
+            style={{
+                bottom: `${bottomOffset + 16}px`,
+                width: `${size}px`,
+                height: `${size}px`,
+            }}
         >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={src} alt="" className="w-full h-full object-cover" />
