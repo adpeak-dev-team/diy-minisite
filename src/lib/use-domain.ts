@@ -1,21 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-// window.location.hostname 에서 의미있는 서브도메인을 뽑아낸다.
+// 호스트명에서 의미있는 서브도메인을 뽑아낸다.
 // proxy.ts 의 hasMeaningfulSubdomain 과 동일 규칙:
 // - 점(.) 없으면 null (localhost 단독)
 // - 첫 세그먼트가 'www' 또는 IP 면 null
-// SSR-safe 하게 mount 후에 읽음.
+export function domainFromHostname(hostname: string): string | null {
+    if (!hostname.includes(".")) return null;
+    const first = hostname.split(".")[0];
+    if (!first || first === "www" || /^\d+$/.test(first)) return null;
+    return first;
+}
+
+// 호스트는 페이지 수명 동안 바뀌지 않으므로 구독은 no-op.
+const subscribe = () => () => {};
+
+function getSnapshot(): string | null {
+    return domainFromHostname(window.location.hostname);
+}
+
+// 서버에는 window 가 없다 → null. 하이드레이션 후 클라이언트 값으로 전환된다.
+function getServerSnapshot(): null {
+    return null;
+}
+
+// window.location.hostname 에서 서브도메인을 읽는다.
+// useEffect + setState 대신 useSyncExternalStore 를 쓰는 이유:
+// effect 안에서 setState 하면 렌더 → effect → setState → 재렌더로 커밋이 한 번 더 돌고
+// (react-hooks/set-state-in-effect 경고), 그 사이 한 프레임이 빈 화면으로 남는다.
 export function useDomainFromHost(): string | null {
-    const [domain, setDomain] = useState<string | null>(null);
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const host = window.location.hostname;
-        if (!host.includes(".")) return;
-        const first = host.split(".")[0];
-        if (!first || first === "www" || /^\d+$/.test(first)) return;
-        setDomain(first);
-    }, []);
-    return domain;
+    return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

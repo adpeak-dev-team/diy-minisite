@@ -1,6 +1,7 @@
 "use client";
 
 import { RefObject, useEffect, useRef, useState } from "react";
+import { useMediaQuery } from "@/lib/use-media-query";
 import { findSubPage, FontKey, Section, Settings, SubPage } from "../types";
 import { fontFamilyOf, parsePxOr } from "../lib";
 import { CountdownBanner, CountdownFloating } from "./countdown";
@@ -156,6 +157,7 @@ function PCPreview({
                             <PreviewHeader
                                 s={s}
                                 px={headerPx}
+                                currentPageId={currentPageId}
                                 pc
                                 onNavigate={onNavigate}
                             />
@@ -188,6 +190,7 @@ function PCPreview({
                         <PreviewHeader
                             s={s}
                             px={headerPx}
+                            currentPageId={currentPageId}
                             pc
                             onNavigate={onNavigate}
                         />
@@ -207,6 +210,7 @@ function PCPreview({
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
+                        effect={s.info.fixedImageEffect}
                         bottomOffset={
                             bottomOffset +
                             (quickConnectStackHeight(s) > 0
@@ -280,6 +284,7 @@ function MobilePreview({
                             <PreviewHeader
                                 s={s}
                                 px={headerPx}
+                                currentPageId={currentPageId}
                                 onNavigate={onNavigate}
                             />
                         </div>
@@ -311,6 +316,7 @@ function MobilePreview({
                         <PreviewHeader
                             s={s}
                             px={headerPx}
+                            currentPageId={currentPageId}
                             onNavigate={onNavigate}
                         />
                         {s.enabled.countdown &&
@@ -330,6 +336,7 @@ function MobilePreview({
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
+                        effect={s.info.fixedImageEffect}
                         bottomOffset={
                             bottomOffset +
                             (quickConnectStackHeight(s) > 0
@@ -387,22 +394,28 @@ function baseSectionId(id: string): string {
 // - 스크롤 업 (scrollTop 감소) → 슬라이드 아웃 (translateY -100%)
 // - 최상단 영역(헤더 높이 이하)에선 원본 in-flow 헤더가 보이므로 숨김
 // 작은 스크롤 흔들림은 무시 (±3px 임계값)
+// scrollContainerRef 를 안 주면 window(=body 스크롤) 를 본다 — 라이브 사이트용.
+// 편집기 프리뷰는 폰/PC 프레임 안의 div 가 스크롤러라 ref 를 넘긴다.
 function SlidingHeaderOverlay({
     children,
     scrollContainerRef,
 }: {
     children: React.ReactNode;
-    scrollContainerRef: RefObject<HTMLElement | null>;
+    scrollContainerRef?: RefObject<HTMLElement | null>;
 }) {
     const [show, setShow] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const el = scrollContainerRef.current;
+        const el = scrollContainerRef ? scrollContainerRef.current : window;
         if (!el) return;
-        let lastTop = el.scrollTop;
+        const topOf = () =>
+            el === window
+                ? window.scrollY
+                : (el as HTMLElement).scrollTop;
+        let lastTop = topOf();
         const update = () => {
-            const current = el.scrollTop;
+            const current = topOf();
             const headerH = ref.current?.offsetHeight ?? 64;
             if (current <= headerH) {
                 setShow(false);
@@ -422,6 +435,7 @@ function SlidingHeaderOverlay({
         el.addEventListener("scroll", update, { passive: true });
         return () => el.removeEventListener("scroll", update);
     }, [scrollContainerRef]);
+
 
     return (
         <div
@@ -450,37 +464,45 @@ export function LiveSite({
     const sections = resolveSections(s, currentPageId);
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
-    const bottomOffset = s.enabled.bottomFixed
-        ? parsePxOr(s.bottomFixed.height, 64)
-        : 0;
     const orderedSections = expandFixedForms(sections);
-    const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction =
         s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
+    // 넓은 화면에선 PC 레이아웃(여백 32px · 본문 16px · 텍스트 폭 768px 중앙정렬)으로,
+    // 좁은 화면에선 모바일 레이아웃(여백 16px · 본문 14px)으로 렌더한다.
+    // 기준 840px = 본문 칼럼이 최대 폭((app)/layout.tsx 의 max-w-210)에 도달하는 지점.
+    // 그 위로는 칼럼 폭이 더 안 늘어나므로 여기가 유일하게 의미 있는 경계다.
+    const pc = useMediaQuery("(min-width: 840px)");
+    // "모바일 하단 고정" 바는 이름 그대로 모바일 전용 — PC 폭에선 숨긴다.
+    // (편집기 PC 미리보기도 같은 이유로 렌더하지 않는다: PCPreview 의 bottomOffset 주석)
+    const showBottomFixed = s.enabled.bottomFixed && !pc;
+    // 떠 있는 버튼들을 하단바 위로 올리는 오프셋 — 바가 없으면 0.
+    const bottomOffset = showBottomFixed
+        ? parsePxOr(s.bottomFixed.height, 64)
+        : 0;
 
     return (
+        // 스크롤 주체는 body(문서) — 내부 div 를 스크롤러로 두지 않는다.
+        // 그래야 모바일 브라우저의 주소창 자동 숨김 · 스크롤 위치 복원 · 앵커 이동이
+        // 정상 동작한다. (편집기 프리뷰는 폰 프레임 안에 가둬야 해서 div 스크롤 유지)
         <div
-            className="relative h-dvh overflow-hidden bg-white flex flex-col"
+            className="relative min-h-dvh bg-white flex flex-col"
             style={{ fontFamily }}
         >
-            <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto"
-                style={{ paddingBottom: bottomOffset }}
-            >
+            <div style={{ paddingBottom: bottomOffset }}>
                 {s.enabled.header ? (
                     <div className={isFix ? "sticky top-0 z-30" : undefined}>
-                        <PreviewHeader s={s} px={headerPx} />
+                        <PreviewHeader s={s} px={headerPx} pc={pc} currentPageId={currentPageId} />
                     </div>
                 ) : null}
                 {s.enabled.countdown && s.countdown.position === "top" ? (
-                    <CountdownBanner s={s} />
+                    <CountdownBanner s={s} pc={pc} />
                 ) : null}
                 <ChildPagesNav s={s} currentPageId={currentPageId} />
                 <PageBody
                     sections={orderedSections}
                     enabled={s.enabled.sections}
+                    pc={pc}
                     privacyText={s.privacyPolicy}
                     fontFamily={
                         fontFamilyOf(resolveContentFontKey(s, currentPageId)) ??
@@ -489,47 +511,69 @@ export function LiveSite({
                 />
                 {s.enabled.location &&
                 (s.location.embedUrl || s.location.address) ? (
-                    <LocationMap location={s.location} />
+                    <LocationMap location={s.location} pc={pc} />
                 ) : null}
-                <FooterBlock footer={s.footer} />
+                <FooterBlock footer={s.footer} pc={pc} />
                 {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                    <CountdownBanner s={s} />
+                    <CountdownBanner s={s} pc={pc} />
                 ) : null}
             </div>
 
-            {isInteraction ? (
-                <SlidingHeaderOverlay scrollContainerRef={scrollRef}>
-                    <PreviewHeader s={s} px={headerPx} />
-                    {s.enabled.countdown &&
-                    s.countdown.position === "top" &&
-                    s.countdown.sticky ? (
-                        <CountdownBanner s={s} />
-                    ) : null}
-                </SlidingHeaderOverlay>
-            ) : null}
-            {s.enabled.bottomFixed ? <BottomFixedBar s={s} /> : null}
-            {s.enabled.countdown && s.countdown.position === "floating" ? (
-                <CountdownFloating s={s} />
-            ) : null}
-            {s.enabled.quickConnect ? (
-                <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
-            ) : null}
-            {s.enabled.fixedImage && s.info.fixedImage ? (
-                <FixedImageFloating
-                    src={s.info.fixedImage}
-                    bottomOffset={
-                        bottomOffset +
-                        (quickConnectStackHeight(s) > 0
-                            ? quickConnectStackHeight(s) + 10
-                            : 0)
-                    }
-                    link={s.info.fixedImageLink}
-                    linkType={s.info.fixedImageLinkType}
-                />
-            ) : null}
-            {s.enabled.popup && s.popupImage ? (
-                <PopupOverlay image={s.popupImage} domain={s.domain} />
-            ) : null}
+            {/*
+              떠 있는 요소(하단바 · 퀵버튼 · 팝업 등)는 전부 absolute 라
+              지금까지 h-dvh 컨테이너를 기준으로 화면에 고정돼 있었다.
+              body 스크롤로 바꾸면 그 기준이 '문서 전체 높이'가 되어 페이지 맨 아래로
+              밀려나므로, viewport 크기의 fixed 레이어를 만들어 그 안에 담는다.
+              → 오버레이 컴포넌트는 그대로 두고(편집기 프리뷰와 공유) 기준만 바꾼다.
+              레이어 자체는 클릭을 통과시키고, 자식만 클릭을 받는다 (globals.css).
+
+              레이어가 둘인 이유 — 기준 폭이 다르다:
+              (1) 칼럼 레이어: 본문 칼럼((app)/layout.tsx 의 max-w-210 = 840px) 에 맞춰야
+                  자연스러운 것들. 하단 고정바(가로 꽉 참) · 팝업(가운데) ·
+                  슬라이딩 헤더 · 마감 타이머(좌측).
+              (2) 화면 레이어: 화면(body) 우측 하단에 붙어야 하는 떠 있는 버튼들.
+                  칼럼에 매어두면 넓은 화면에서 여백 안쪽에 어중간하게 뜬다.
+            */}
+            <div className="live-overlay-layer fixed inset-0 mx-auto w-full max-w-210 z-40 pointer-events-none">
+                {isInteraction ? (
+                    <SlidingHeaderOverlay>
+                        <PreviewHeader s={s} px={headerPx} pc={pc} currentPageId={currentPageId} />
+                        {s.enabled.countdown &&
+                        s.countdown.position === "top" &&
+                        s.countdown.sticky ? (
+                            <CountdownBanner s={s} pc={pc} />
+                        ) : null}
+                    </SlidingHeaderOverlay>
+                ) : null}
+                {showBottomFixed ? <BottomFixedBar s={s} /> : null}
+                {s.enabled.countdown && s.countdown.position === "floating" ? (
+                    <CountdownFloating s={s} pc={pc} />
+                ) : null}
+                {s.enabled.popup && s.popupImage ? (
+                    <PopupOverlay image={s.popupImage} domain={s.domain} />
+                ) : null}
+            </div>
+
+            {/* 화면(body) 기준 — 칼럼 폭에 매이지 않고 viewport 우측 하단에 붙는다. */}
+            <div className="live-overlay-layer fixed inset-0 z-40 pointer-events-none">
+                {s.enabled.quickConnect ? (
+                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                ) : null}
+                {s.enabled.fixedImage && s.info.fixedImage ? (
+                    <FixedImageFloating
+                        src={s.info.fixedImage}
+                        effect={s.info.fixedImageEffect}
+                        bottomOffset={
+                            bottomOffset +
+                            (quickConnectStackHeight(s) > 0
+                                ? quickConnectStackHeight(s) + 10
+                                : 0)
+                        }
+                        link={s.info.fixedImageLink}
+                        linkType={s.info.fixedImageLinkType}
+                    />
+                ) : null}
+            </div>
         </div>
     );
 }

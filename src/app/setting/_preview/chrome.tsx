@@ -1,20 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { MouseEvent } from "react";
 import { HeaderAlign, MenuItem, Settings, SubPage } from "../types";
-import { clampPct, menuHref, parsePxOr } from "../lib";
+import { clampPct, fontFamilyOf, menuHref, parsePxOr } from "../lib";
 import { isLightColor } from "../color";
+
+// 사용자가 지정한 글자 크기를 모바일에서 줄이는 비율.
+// 기존 기본값이 PC 14px · 모바일 12px 였으므로 그 비율을 그대로 쓴다.
+const MOBILE_FONT_RATIO = 12 / 14;
 
 export function PreviewHeader({
     s,
     px,
     pc = false,
     onNavigate,
+    currentPageId = null,
 }: {
     s: Settings;
     px: number;
     pc?: boolean;
     onNavigate?: (pageId: string | null) => void;
+    // 현재 보고 있는 페이지 — 해당 메뉴 칩을 활성 상태로 표시하는 데만 쓴다.
+    currentPageId?: string | null;
 }) {
     const bg = s.header.color || "#0F172A";
     const light = isLightColor(bg);
@@ -80,14 +88,14 @@ export function PreviewHeader({
                 {clickInner}
             </button>
         ) : (
-            <a
+            <Link
                 href="/"
                 aria-label="메인으로"
                 className="cursor-pointer block"
                 style={{ maxWidth: "100%" }}
             >
                 {clickInner}
-            </a>
+            </Link>
         );
         // 로고 이미지가 있을 때만 컨테이너 폭에 %를 준다. 텍스트 대체(LOGO) 상태에선
         // 자연 폭을 유지해야 outer flex 의 justify-* 로 좌/중/우 정렬이 자연스럽다.
@@ -152,6 +160,29 @@ export function PreviewHeader({
         }
         return target;
     };
+    // 메뉴 strip 의 테두리 굵기 · 글자 크기.
+    // 설정값은 PC 기준이고, 모바일은 같은 비율로 줄인다 —
+    // PC 에서 20px 로 키운 걸 좁은 폰에 그대로 쓰면 메뉴가 두세 줄로 넘친다.
+    // 비율은 기존 기본값(PC 14px · 모바일 12px)에서 그대로 가져왔다.
+    // viewport 단위(vw · clamp)를 안 쓰는 이유: 편집기 모바일 미리보기는 넓은 창 안의
+    // 좁은 div 라서 vw 로 계산하면 PC 크기로 나온다. pc 플래그가 유일하게 정확한 기준.
+    const menuBorderW = parsePxOr(s.subMenus.borderWidth, 1);
+    const menuFontPc = parsePxOr(s.subMenus.fontSize, 14);
+    const menuFontSize = pc
+        ? menuFontPc
+        : Math.max(10, Math.round(menuFontPc * MOBILE_FONT_RATIO));
+
+    // 메뉴가 가리키는 페이지(또는 그 하위 페이지)를 보고 있으면 활성.
+    // 부모 메뉴는 자식 페이지를 보고 있을 때도 활성이어야 위치가 읽힌다.
+    const isMenuActive = (m: MenuItem): boolean => {
+        if (!currentPageId || m.linkType !== "subpage") return false;
+        const slug = m.link.replace(/^\/+/, "");
+        const target = s.subPages.find((p) => p.slug === slug);
+        if (!target) return false;
+        if (target.id === currentPageId) return true;
+        return (target.children ?? []).some((c) => c.id === currentPageId);
+    };
+
     const handleMenuClick = (m: MenuItem) => (e: MouseEvent<HTMLAnchorElement>) => {
         if (!onNavigate || m.linkType !== "subpage") return;
         e.preventDefault();
@@ -188,8 +219,13 @@ export function PreviewHeader({
             style={{ background: bg, color: textColor }}
         >
             <div
-                className="flex items-center border-b"
+                className="flex items-center"
                 style={{
+                    // 로고 줄의 밑줄. 메뉴 strip 이 바로 아래 붙는 경우엔 그 줄이
+                    // 메뉴의 '상단 테두리' 설정과 겹쳐 보인다 (설정을 꺼도 선이 남음)
+                    // → 메뉴가 있으면 여기선 긋지 않고 메뉴 쪽 설정에 맡긴다.
+                    borderBottomStyle: "solid",
+                    borderBottomWidth: showMenus ? 0 : 1,
                     borderBottomColor: borderColor,
                     padding: `${px}px ${sideX}px`,
                 }}
@@ -227,12 +263,23 @@ export function PreviewHeader({
             </div>
             {showMenus ? (
                 <div
-                    className={`flex items-center justify-around border-b relative ${pc ? "text-sm" : "text-xs"}`}
+                    className="flex flex-wrap items-center justify-around gap-x-1 gap-y-1.5 relative"
                     style={{
                         background: s.subMenus.bgColor || bg,
                         color: s.subMenus.textColor || textColor,
-                        borderBottomColor: borderColor,
-                        // 폰트 명시 안 함 → 프리뷰 프레임의 s.font 상속
+                        // 상·하단 테두리 — 유무 · 굵기 · 색 모두 사용자 설정.
+                        // 색이 비어 있으면 헤더 밝기에 맞춘 기본 테두리색을 쓴다.
+                        borderStyle: "solid",
+                        borderLeftWidth: 0,
+                        borderRightWidth: 0,
+                        borderTopWidth: s.subMenus.borderTop ? menuBorderW : 0,
+                        borderBottomWidth: s.subMenus.borderBottom
+                            ? menuBorderW
+                            : 0,
+                        borderColor: s.subMenus.borderColor || borderColor,
+                        fontFamily: fontFamilyOf(s.subMenus.font),
+                        fontSize: `${menuFontSize}px`,
+                        fontWeight: Number(s.subMenus.fontWeight),
                         padding: `${parsePxOr(s.subMenus.padding, pc ? 10 : 8)}px ${pc ? 32 : 16}px`,
                     }}
                 >
@@ -242,21 +289,18 @@ export function PreviewHeader({
                         const hasDropdown =
                             childrenList !== null && childrenList.length > 0;
                         return (
-                            <div
-                                key={m.id}
-                                className={`group relative ${
-                                    hasDropdown ? "" : ""
-                                }`}
-                            >
+                            <div key={m.id} className="group relative">
                                 <a
                                     href={menuHref(m)}
                                     onClick={handleMenuClick(m)}
-                                    className="hover:opacity-80 transition cursor-pointer inline-flex items-center gap-1"
+                                    data-active={isMenuActive(m)}
+                                    className="nav-link cursor-pointer inline-flex items-center gap-1"
                                     style={{ color: "inherit" }}
                                 >
                                     {m.name}
                                     {hasDropdown ? (
-                                        <span className="text-[9px] opacity-60">
+                                        // 펼쳐지면 화살표도 같이 뒤집혀서 상태가 읽힌다
+                                        <span className="text-[9px] opacity-60 transition-transform duration-200 group-hover:rotate-180">
                                             ▾
                                         </span>
                                     ) : null}
@@ -270,7 +314,7 @@ export function PreviewHeader({
                                         className="absolute left-1/2 -translate-x-1/2 top-full min-w-40 z-30 overflow-hidden max-h-0 opacity-0 -translate-y-1 group-hover:max-h-96 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 ease-out pointer-events-none group-hover:pointer-events-auto"
                                     >
                                         <div
-                                            className="mt-1 rounded-md shadow-lg border py-1"
+                                            className="mt-2 rounded-xl shadow-xl border py-1.5 overflow-hidden"
                                             style={{
                                                 background: light
                                                     ? "#FFFFFF"
@@ -284,7 +328,10 @@ export function PreviewHeader({
                                                     key={c.id}
                                                     href={childHref(parentSlug, c)}
                                                     onClick={handleChildClick(c)}
-                                                    className={`block px-3 py-1.5 text-center hover:opacity-80 transition ${pc ? "text-sm" : "text-xs"}`}
+                                                    data-active={c.id === currentPageId}
+                                                    // 글자 크기는 strip 에서 상속 — 메뉴를 키우면 하위 항목도 같이 커진다.
+                                                    // (예전엔 text-sm/text-xs 로 고정돼 메뉴만 커지고 따로 놀았다)
+                                                    className="nav-item block px-4 py-2 text-center whitespace-nowrap"
                                                     style={{ color: "inherit" }}
                                                 >
                                                     {c.title || c.slug}

@@ -73,7 +73,10 @@ export function FormBlock({
             style={{ background: bgColor, color: fg, fontFamily }}
         >
             <div
-                className="max-w-xl mx-auto rounded-xl border border-slate-200 p-5 shadow-sm overflow-hidden"
+                // 폼 카드는 담긴 영역을 꽉 채운다(width:100%).
+                // 예전엔 max-w-xl(576px) 로 가운데 정렬돼 있어서 넓은 화면에서
+                // 본문 섹션들보다 눈에 띄게 좁았다. 좌우 여백은 바깥 padCls 가 담당.
+                className="w-full rounded-xl border border-slate-200 p-5 overflow-hidden"
                 style={{ background: cardBg }}
             >
                 {(data.subjectType ?? "text") === "image" ? (

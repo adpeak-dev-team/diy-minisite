@@ -30,6 +30,7 @@ import {
     useDrafts,
 } from "./_editor/drafts-ui";
 import { useSaveSettings, useSettings } from "@/service/setting";
+import { useDomainFromHost } from "@/lib/use-domain";
 import { TEMPLATES } from "./templates";
 import { withGuideDemoExtras, fillGuideFeatureContent } from "./guide-demo";
 
@@ -82,16 +83,8 @@ function SettingPageInner() {
     const searchParams = useSearchParams();
     const queryDomain = searchParams.get("domain");
     // SvelteKit 시절 `url.host.split('.')[0]` 패턴과 동일.
-    // SSR 안전을 위해 mount 후에 window.location 에서 추출.
-    const [hostDomain, setHostDomain] = useState<string | null>(null);
-    useEffect(() => {
-        if (typeof window === "undefined") return;
-        const host = window.location.hostname;
-        if (!host.includes(".")) return; // 'localhost' 단독
-        const first = host.split(".")[0];
-        if (!first || first === "www" || /^\d+$/.test(first)) return; // IP, www
-        setHostDomain(first);
-    }, []);
+    // 라이브 사이트와 같은 훅을 쓴다 (규칙 중복 방지 — src/lib/use-domain.ts).
+    const hostDomain = useDomainFromHost();
     const domain = queryDomain ?? hostDomain;
     const [s, setS] = useState<Settings>(initialSettings);
     const [autoFocus, setAutoFocus] = useState(true);
@@ -174,25 +167,40 @@ function SettingPageInner() {
     const saving = saveMutation.isPending;
 
     // baseline 도착(또는 도메인 변경) 시 s 동기화. fetch 성공 시 1회.
-    useEffect(() => {
+    // useEffect 대신 '렌더 중 조정' 패턴 — 입력(domain/data/isError)이 달라진 렌더에서
+    // 곧바로 s 를 맞춘다. effect 로 하면 커밋이 한 번 더 돌면서 그 사이 한 프레임 동안
+    // 옛 도메인 내용이 그대로 보인다. (React: "You Might Not Need an Effect")
+    // 비교는 반드시 원본 참조(settingsQuery.data)로 — 파생 객체는 매 렌더 새로 생겨
+    // 무한 렌더가 된다.
+    const [syncedFrom, setSyncedFrom] = useState<{
+        domain: string | null;
+        data: Settings | undefined;
+        isError: boolean;
+    }>({ domain: null, data: undefined, isError: false });
+
+    if (
+        syncedFrom.domain !== domain ||
+        syncedFrom.data !== settingsQuery.data ||
+        syncedFrom.isError !== settingsQuery.isError
+    ) {
+        setSyncedFrom({
+            domain,
+            data: settingsQuery.data,
+            isError: settingsQuery.isError,
+        });
         if (!domain) {
             setS(initialSettings);
             setCurrentPageId(null);
-            return;
-        }
-        if (settingsQuery.data) {
+        } else if (settingsQuery.data) {
             setS({ ...settingsQuery.data, domain });
             setCurrentPageId(null);
-        }
-    }, [domain, settingsQuery.data]);
-
-    // 에러여도 편집은 계속 가능하게 빈 설정으로 폴백 (기존 동작 유지)
-    useEffect(() => {
-        if (domain && settingsQuery.isError) {
+        } else if (settingsQuery.isError) {
+            // 에러여도 편집은 계속 가능하게 빈 설정으로 폴백 (기존 동작 유지)
             setS({ ...initialSettings, domain });
             setCurrentPageId(null);
         }
-    }, [domain, settingsQuery.isError]);
+        // 로딩 중(data 없음 · 에러 아님)이면 건드리지 않는다 — 기존 동작과 동일.
+    }
 
     const load: LoadState = !domain
         ? { status: "idle" }
