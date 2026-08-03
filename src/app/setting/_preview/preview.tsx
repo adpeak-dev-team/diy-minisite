@@ -124,7 +124,7 @@ function PCPreview({
     const headerPx = parsePxOr(s.header.padding, 12);
     // PC 에는 "모바일 하단 고정" 바가 노출되지 않으므로 floating 오프셋은 기본값만.
     const bottomOffset = 16;
-    const orderedSections = expandFixedForms(sections);
+    const orderedSections = orderFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
@@ -258,7 +258,7 @@ function MobilePreview({
     // 바가 실측값을 올려주면 그걸 따른다.
     const [barH, setBarH] = useState(() => parsePxOr(s.bottomFixed.height, 64));
     const bottomOffset = s.enabled.bottomFixed ? barH : 0;
-    const orderedSections = expandFixedForms(sections);
+    const orderedSections = orderFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
@@ -397,10 +397,10 @@ function PageBody({
     );
 }
 
-// expandFixedForms / resolveSections 가 붙이는 접미사(__bottom-dup, __from-main)를
-// 제거해 원본 섹션 id 로 되돌린다 (편집 대상 매칭용).
+// resolveSections 가 붙이는 접미사(__from-main)를 제거해 원본 섹션 id 로 되돌린다
+// (편집 대상 매칭용). orderFixedForms 는 섹션을 옮기기만 하므로 id 를 안 바꾼다.
 function baseSectionId(id: string): string {
-    return id.replace(/__(bottom-dup|from-main)$/, "");
+    return id.replace(/__from-main$/, "");
 }
 
 // 헤더 "스크롤 상호작용" 모드용 상단 고정 오버레이.
@@ -490,7 +490,7 @@ export function LiveSite({
     const sections = resolveSections(s, currentPageId);
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
-    const orderedSections = expandFixedForms(sections);
+    const orderedSections = orderFixedForms(sections);
     const isInteraction =
         s.enabled.header && s.headerStyle === "interaction";
     const isFix = s.enabled.header && s.headerStyle === "fix";
@@ -711,26 +711,31 @@ function ChildPagesNav({
 }
 
 // fixedBottom === "fixed" 인 form 섹션의 노출 규칙:
-// - 원래 위치 그대로 유지
-// - 단, 페이지 마지막에 위치한 경우가 아니면 동일한 폼을 페이지 하단에도 복제해서 노출
-//   (i.e. 중간에 있는 fixed 폼은 원래 위치 + 하단, 2번 나옴)
-// - 폼 바로 앞의 '문의 버튼 이미지'도 함께 복제한다. 옛 데이터에선 이 둘이 contentList
-//   한 항목(formInviteImg + formList)에서 갈라져 나온 짝이라, 폼만 복제하면 하단 사본이
-//   원위치와 다른 모습이 된다.
-function expandFixedForms(sections: Section[]): Section[] {
-    const dups: Section[] = [];
+// 옛 렌더러는 이걸 '이 폼을 페이지 맨 아래에 둔다'로 해석해서, 원래 위치에서 빼내
+// 하단으로 **옮긴다**. 복제가 아니다 — 복제하면 같은 폼이 두 번 나온다.
+// 폼 바로 앞의 '문의 버튼 이미지'는 옛 데이터에서 같은 contentList 항목
+// (formInviteImg + formList)이 갈라져 나온 짝이므로 함께 옮긴다.
+//
+// 예: dusan 의 contentList = [이미지, 폼A(nonfixed), 폼B(fixed), 이미지16장]
+//   → 이미지 · 문의이미지A · 폼A · 이미지16장 · 문의이미지B · 폼B
+function orderFixedForms(sections: Section[]): Section[] {
+    const movedIdx = new Set<number>();
+    const tail: Section[] = [];
     sections.forEach((sec, i) => {
         const isFixed =
             sec.type === "form" && sec.formData?.fixedBottom === "fixed";
-        if (!isFixed || i >= sections.length - 1) return;
+        if (!isFixed) return;
         const prev = i > 0 ? sections[i - 1] : undefined;
         if (
             prev?.legacy?.role === "form-invite" &&
             prev.legacy.contentListIndex === sec.legacy?.contentListIndex
         ) {
-            dups.push({ ...prev, id: `${prev.id}__bottom-dup` });
+            movedIdx.add(i - 1);
+            tail.push(prev);
         }
-        dups.push({ ...sec, id: `${sec.id}__bottom-dup` });
+        movedIdx.add(i);
+        tail.push(sec);
     });
-    return [...sections, ...dups];
+    if (tail.length === 0) return sections;
+    return [...sections.filter((_, i) => !movedIdx.has(i)), ...tail];
 }
