@@ -1,6 +1,6 @@
 "use client";
 
-import { MouseEvent, useEffect, useState } from "react";
+import { MouseEvent, useEffect, useRef, useState } from "react";
 import { BottomSlot, FixedImageEffect, Settings } from "../types";
 import { fontFamilyOf, parsePxOr } from "../lib";
 
@@ -13,12 +13,43 @@ function scrollToLastForm() {
     last?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-export function BottomFixedBar({ s }: { s: Settings }) {
+export function BottomFixedBar({
+    s,
+    onHeight,
+}: {
+    s: Settings;
+    // 실제 렌더된 바 높이를 부모에게 알린다. 이미지 슬롯은 원본 비율로 그려져
+    // 높이가 렌더 후에야 정해지므로, 본문 하단 여백·떠 있는 버튼 오프셋을
+    // 설정값이 아니라 이 실측값으로 잡아야 바가 내용을 가리지 않는다.
+    onHeight?: (h: number) => void;
+}) {
     const slots: BottomSlot[] = [s.bottomFixed.phone, s.bottomFixed.consult].filter(
         (slot) => slot.enabled,
     );
-    if (slots.length === 0) return null;
-    const height = `${parsePxOr(s.bottomFixed.height, 64)}px`;
+    const hasSlots = slots.length > 0;
+    const ref = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!onHeight) return;
+        if (!hasSlots) {
+            onHeight(0);
+            return;
+        }
+        const el = ref.current;
+        if (!el) return;
+        const measure = () => onHeight(el.offsetHeight);
+        measure();
+        // 이미지가 늦게 로드되면 높이가 바뀐다 → ResizeObserver 로 계속 추적.
+        const ro = new ResizeObserver(measure);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, [onHeight, hasSlots]);
+
+    if (!hasSlots) return null;
+
+    // 설정 높이는 더 이상 바를 고정시키지 않고, 텍스트 슬롯의 최소 높이로만 쓴다.
+    // (이미지 슬롯은 원본 비율대로 커지고 줄어든다 — 잘리거나 늘어나지 않게)
+    const minHeight = `${parsePxOr(s.bottomFixed.height, 64)}px`;
 
     const handleSlotClick = (slot: BottomSlot) =>
         (e: MouseEvent<HTMLAnchorElement>) => {
@@ -30,10 +61,11 @@ export function BottomFixedBar({ s }: { s: Settings }) {
 
     return (
         <div
+            ref={ref}
             data-focus-target="bottom"
             data-guide="pv-bottom"
-            className="absolute inset-x-0 bottom-0 z-20 flex border-t border-slate-200"
-            style={{ height, fontFamily: fontFamilyOf(s.bottomFixed.font) }}
+            className="absolute inset-x-0 bottom-0 z-20 flex items-stretch border-t border-slate-200"
+            style={{ fontFamily: fontFamilyOf(s.bottomFixed.font) }}
         >
             {slots.map((slot, i) => (
                 <a
@@ -44,6 +76,11 @@ export function BottomFixedBar({ s }: { s: Settings }) {
                     style={{
                         background: slot.bgColor || "#0F172A",
                         color: slot.textColor || "#FFFFFF",
+                        // 이미지 슬롯의 높이는 이미지가 정한다 → 최소 높이를 걸지 않는다.
+                        minHeight:
+                            slot.mode === "image" && slot.image
+                                ? undefined
+                                : minHeight,
                     }}
                 >
                     {slot.mode === "image" && slot.image ? (
@@ -51,7 +88,9 @@ export function BottomFixedBar({ s }: { s: Settings }) {
                         <img
                             src={slot.image}
                             alt=""
-                            className="w-full h-full object-cover"
+                            // 가로는 슬롯을 채우고 세로는 원본 비율 유지 (object-cover 로
+                            // 잘라내던 예전 동작과 달리 이미지가 통째로 보인다)
+                            className="w-full h-auto block"
                         />
                     ) : (
                         <span className="text-sm font-medium">{slot.text}</span>
@@ -84,7 +123,7 @@ export function QuickConnectButtons({
             fg: "#000",
             href: s.quickConnect.kakao.url,
             icon: (
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <svg width="39" height="39" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <path d="M12 3C6.48 3 2 6.58 2 11c0 2.83 1.85 5.32 4.65 6.78l-1.2 4.4c-.08.3.23.55.5.39l5.21-3.46c.28.03.55.04.84.04 5.52 0 10-3.58 10-8.15S17.52 3 12 3z" />
                 </svg>
             ),
@@ -98,8 +137,8 @@ export function QuickConnectButtons({
             href: `sms:${s.quickConnect.sms.phone}`,
             icon: (
                 <svg
-                    width="24"
-                    height="24"
+                    width="36"
+                    height="36"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -129,7 +168,7 @@ export function QuickConnectButtons({
                     target="_blank"
                     rel="noopener"
                     aria-label={it.label}
-                    className="w-15 h-15 rounded-full shadow-lg ring-1 ring-black/5 flex items-center justify-center hover:scale-105 active:scale-95 transition"
+                    className="w-22.5 h-22.5 rounded-full shadow-lg ring-1 ring-black/5 flex items-center justify-center hover:scale-105 active:scale-95 transition"
                     style={{ background: it.bg, color: it.fg }}
                 >
                     {it.icon}
@@ -178,7 +217,7 @@ export function FixedImageFloating({
             data-edit="fiximage"
             data-guide="pv-fiximage"
             aria-label="우측 고정 이미지"
-            className={`absolute right-3 z-20 w-15 h-15 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer transition ${hover} ${FIXED_IMAGE_FX_CLASS[effect]}`}
+            className={`absolute right-3 z-20 w-22.5 h-22.5 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer transition ${hover} ${FIXED_IMAGE_FX_CLASS[effect]}`}
             style={{ bottom: `${bottomOffset + 16}px` }}
         >
             {/* eslint-disable-next-line @next/next/no-img-element */}

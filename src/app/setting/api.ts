@@ -713,10 +713,14 @@ function landToSettings(land: Land): Settings {
       phone: {
         ...initialSettings.bottomFixed.phone,
         ...jsonBottomPhone,
+        // 구버전 행의 유추 기준은 '버튼 이미지가 있는가' 뿐이다.
+        // ld_phone_num 은 거의 모든 행에 들어 있는 전화번호일 뿐 하단바 구성과 무관해서,
+        // 이걸 근거로 켜면 옛 사이트엔 없던 텍스트 버튼이 하나 더 생겨 버튼이 2개가 된다.
+        // (전화번호는 아래 link 로만 쓴다)
         enabled:
           "enabled" in jsonBottomPhone
             ? !!jsonBottomPhone.enabled
-            : !!bottomPhoneImg || !!asString(land.ld_phone_num),
+            : !!bottomPhoneImg,
         mode: parseBottomMode(
           jsonBottomPhone.mode,
           bottomPhoneImg ? "image" : "text",

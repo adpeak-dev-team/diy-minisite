@@ -4,7 +4,21 @@ import { useEffect, useState } from "react";
 import { Settings } from "../types";
 import { fontFamilyOf, parsePxOr } from "../lib";
 
-export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }) {
+// 하단 고정바가 차지하는 실제 높이. 바는 이미지 원본 비율로 그려져 높이가
+// 렌더 후에야 정해지므로 부모가 실측값을 내려준다. 안 주면 설정값으로 폴백.
+function fallbackBottomOffset(s: Settings): number {
+    return s.enabled.bottomFixed ? parsePxOr(s.bottomFixed.height, 64) : 0;
+}
+
+export function CountdownBanner({
+    s,
+    pc = false,
+    bottomOffset: bottomOffsetProp,
+}: {
+    s: Settings;
+    pc?: boolean;
+    bottomOffset?: number;
+}) {
     const left = useTimeLeft(s.countdown.deadline);
     const count = parsePxOr(s.countdown.applicantsCount, 0);
     const padCls = pc ? "px-8 py-4" : "px-3 py-2.5";
@@ -26,9 +40,7 @@ export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }
         return () => ro.disconnect();
     }, [s.countdown.position, s.countdown.sticky]);
 
-    const bottomOffset = s.enabled.bottomFixed
-        ? parsePxOr(s.bottomFixed.height, 64)
-        : 0;
+    const bottomOffset = bottomOffsetProp ?? fallbackBottomOffset(s);
 
     // "스크롤 시 고정" 처리 — top 위치일 땐 헤더 스타일에 종속:
     // - fix: 헤더 바로 아래 sticky (기존 동작)
@@ -83,14 +95,22 @@ export function CountdownBanner({ s, pc = false }: { s: Settings; pc?: boolean }
     );
 }
 
-export function CountdownFloating({ s, pc = false }: { s: Settings; pc?: boolean }) {
+export function CountdownFloating({
+    s,
+    pc = false,
+    bottomOffset: bottomOffsetProp,
+}: {
+    s: Settings;
+    pc?: boolean;
+    bottomOffset?: number;
+}) {
     const left = useTimeLeft(s.countdown.deadline);
     const count = parsePxOr(s.countdown.applicantsCount, 0);
     const bg = s.countdown.bgColor || "#2563EB";
     const fg = s.countdown.textColor || "#FFFFFF";
     const fontFamily = fontFamilyOf(s.countdown.font);
     const size = pc ? 112 : 84;
-    const bottomOffset = (s.enabled.bottomFixed ? parsePxOr(s.bottomFixed.height, 64) : 0) + 16;
+    const bottomOffset = (bottomOffsetProp ?? fallbackBottomOffset(s)) + 16;
 
     return (
         <div
