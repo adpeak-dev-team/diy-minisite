@@ -800,7 +800,13 @@ function landToSettings(land: Land): Settings {
       privacy: asString(land.ld_personal_info_view) === "on",
       bottomFixed: hasBottomData,
       countdown: !!asString(jsonCountdown.deadline),
-      quickConnect: hasKakao || hasSms,
+      // 옛 렌더러엔 떠 있는 카카오·문자 버튼이 없다.
+      // ld_sms_num 은 이 버튼의 on/off 가 아니라 /sms 페이지가 쓰는 수신번호라
+      // land 114 행 전부에 들어 있다 (ld_kakao 는 0 행). 이걸 근거로 켜면
+      // 모든 옛 사이트에 원래 없던 버튼이 생긴다 → 구버전 행에선 끈 채로 둔다.
+      // 에디터에서 켠 값(ld_json_enabled)이 있으면 아래 spread 가 덮어쓴다.
+      // (번호 자체는 quickConnect.sms.phone 에 그대로 보존돼 켜면 바로 동작)
+      quickConnect: false,
       location:
         !!asString(jsonLocation.address) || !!asString(land.ld_location),
       advanced:
