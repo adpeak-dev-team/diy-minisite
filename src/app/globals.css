@@ -56,6 +56,85 @@ body {
   font-family: var(--font-suit);
 }
 
+/* 우측 고정 이미지의 '시선 끌기' 반복 애니메이션 (types.ts 의 FixedImageEffect).
+   접근성: 사용자가 OS 에서 '동작 줄이기'를 켜면 전부 끈다. */
+/* 옛 렌더러의 기본 동작 — 투명해졌다가 돌아오기 */
+@keyframes fx-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+@keyframes fx-bounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+  60% { transform: translateY(-5px); }
+}
+@keyframes fx-shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-9deg); }
+  40% { transform: rotate(9deg); }
+  60% { transform: rotate(-6deg); }
+  80% { transform: rotate(6deg); }
+}
+@keyframes fx-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+@keyframes fx-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.55); }
+  70% { box-shadow: 0 0 0 14px rgba(37, 99, 235, 0); }
+}
+
+.fx-blink  { animation: fx-blink 1.4s ease-in-out infinite; }
+.fx-bounce { animation: fx-bounce 2s ease-in-out infinite; }
+.fx-shake  { animation: fx-shake 2.2s ease-in-out infinite; }
+.fx-pulse  { animation: fx-pulse 1.8s ease-in-out infinite; }
+.fx-glow   { animation: fx-glow 2s ease-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fx-blink, .fx-bounce, .fx-shake, .fx-pulse, .fx-glow { animation: none; }
+}
+
+/* 상단 메뉴 strip.
+   테두리 · 글자 크기 · 굵기 · 폰트 · 색은 전부 사용자 설정값이라 chrome.tsx 가
+   인라인 style 로 직접 지정한다. 여기엔 인라인으로 못 쓰는 것만 남긴다.
+   .nav-link = 메뉴 링크, .nav-item = 드롭다운 항목,
+   [data-active="true"] = 현재 보고 있는 페이지. */
+.nav-link {
+  letter-spacing: -0.01em;
+  transition: opacity 160ms ease;
+}
+.nav-link:hover,
+.group:hover > .nav-link {
+  opacity: 0.7;
+}
+/* 현재 보고 있는 페이지 — 사용자가 정한 굵기보다 한 단계 위로 */
+.nav-link[data-active="true"] {
+  font-weight: 800;
+}
+
+/* 드롭다운 항목 — 배경색을 모르므로 현재 글자색을 옅게 깔아 강조한다. */
+.nav-item {
+  transition: background-color 140ms ease;
+}
+.nav-item:hover,
+.nav-item[data-active="true"] {
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+.nav-item[data-active="true"] {
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-link { transition: none; }
+}
+
+/* 라이브 사이트의 떠 있는 요소(하단바 · 퀵버튼 · 팝업 등)를 담는 viewport 고정 레이어.
+   레이어는 화면 전체를 덮으므로 클릭을 통과시키고, 실제 요소인 자식만 클릭을 받는다.
+   (preview.tsx 의 LiveSite 참조) */
+.live-overlay-layer > * {
+  pointer-events: auto;
+}
+
 @layer components {
   .input-base {
     @apply px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none transition

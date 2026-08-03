@@ -35,6 +35,20 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/*
+          사용자가 사이트별로 고르는 본문 폰트들(types.ts 의 FONT_OPTIONS).
+          next/font/google 로 옮기지 않고 의도적으로 <link> 를 유지한다:
+          - 어느 랜딩페이지가 어느 폰트를 쓰는지는 DB 설정에서 런타임에 정해져
+            빌드 시점에 알 수 없다 → 라우트별 정적 import(문서 권장 회피책) 불가.
+          - next/font 는 preload 가 기본 true 이고 루트 레이아웃에서 부르면
+            "모든 라우트"에 preload 가 박힌다 → 한글 폰트 12종을 매 페이지 선다운로드.
+            지금처럼 스타일시트로 두면 브라우저가 실제 쓰인 폰트만 받는다.
+          - 전부 preload:false 로 끄면 next/font 이점이 사라져 셀프호스팅만 남는데,
+            정작 기본 폰트 Pretendard 와 SUIT 는 globals.css 의 @font-face 로
+            여전히 외부(jsdelivr)에서 온다 → 경고를 없애도 목적은 달성되지 않음.
+          셀프호스팅이 필요해지면 대상은 구글폰트가 아니라 아래 jsdelivr 미러 쪽이다.
+        */}
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Gaegu&family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Jua&family=Nanum+Gothic:wght@400;700;800&family=Nanum+Myeongjo:wght@400;700;800&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap"

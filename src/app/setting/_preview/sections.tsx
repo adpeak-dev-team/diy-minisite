@@ -216,7 +216,10 @@ function ImageWithEffect({
         effect === "hover-zoom" || effect === "gradient"
             ? "relative overflow-hidden"
             : "";
-    const imgClass = `w-full block ${rounded} ${
+    // 원본 크기로 두되 컨테이너를 넘으면 줄인다.
+    // 예전엔 w-full 이라 작은 이미지도 컨테이너 폭까지 억지로 늘려서 흐려졌다.
+    // 컨테이너보다 좁으면 가운데 정렬 (좌측에 붙어 어색해지지 않게).
+    const imgClass = `max-w-full h-auto mx-auto block ${rounded} ${
         effect === "hover-zoom"
             ? "transition-transform duration-500 hover:scale-105"
             : ""

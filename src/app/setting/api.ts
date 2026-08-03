@@ -1,6 +1,12 @@
 import {
+  BottomSlotMode,
+  FixedImageEffect,
   GalleryImage,
+  HeroTextPosition,
+  ImageEffect,
   initialSettings,
+  FontKey,
+  MenuFontWeight,
   LegacyContentItem,
   Section,
   SectionAnimation,
@@ -48,8 +54,85 @@ function parseAnimation(rec: Record<string, unknown>): SectionAnimation {
   if (t && (ANIMATION_VALUES as string[]).includes(t)) {
     return t as SectionAnimation;
   }
-  // 구버전 데이터: 종류 정보 없음 → on 이면 페이드인으로 폴백
-  return asString(rec.effect) === "on" ? "fade-in" : "none";
+  // 구버전 데이터: effect on/off 만 있고 종류 정보가 없다.
+  // 옛 렌더러는 on 이면 '아래서 위로 올라오기' 한 가지만 그렸으므로 slide-up 으로 매핑한다.
+  // (fade-in 으로 두면 기존 사이트들이 편집기에서 실제와 다르게 보이고,
+  //  한 번 저장하면 effectType: "fade-in" 이 박혀 원래 모습을 잃는다.)
+  return asString(rec.effect) === "on" ? "slide-up" : "none";
+}
+
+// 메인 배너 전용 키들의 파서. 알 수 없는 값이면 에디터 기본값으로 폴백.
+const HERO_TEXT_POSITIONS: HeroTextPosition[] = ["top", "center", "bottom"];
+
+function parseHeroTextPosition(v: unknown): HeroTextPosition {
+  const s = asString(v);
+  return (HERO_TEXT_POSITIONS as string[]).includes(s)
+    ? (s as HeroTextPosition)
+    : "center";
+}
+
+const IMAGE_EFFECTS: ImageEffect[] = [
+  "none",
+  "shadow",
+  "rounded",
+  "grayscale",
+  "sepia",
+  "blur",
+  "hover-zoom",
+  "gradient",
+];
+
+function parseImageEffect(v: unknown): ImageEffect {
+  const s = asString(v);
+  return (IMAGE_EFFECTS as string[]).includes(s) ? (s as ImageEffect) : "none";
+}
+
+// 하단 고정바 슬롯의 표시 방식. 저장된 값이 없거나 이상하면 fallback(옛 컬럼 기반 유추).
+function parseBottomMode(v: unknown, fallback: BottomSlotMode): BottomSlotMode {
+  const s = asString(v);
+  return s === "image" || s === "text" ? s : fallback;
+}
+
+const MENU_FONT_WEIGHTS: MenuFontWeight[] = [
+  "300",
+  "400",
+  "500",
+  "600",
+  "700",
+  "800",
+];
+
+function parseMenuFontWeight(v: unknown): MenuFontWeight {
+  const s = asString(v);
+  return (MENU_FONT_WEIGHTS as string[]).includes(s)
+    ? (s as MenuFontWeight)
+    : initialSettings.subMenus.fontWeight;
+}
+
+// 불리언 설정 — 저장된 값이 없으면(옛 행) 기본값. 명시된 false 는 그대로 존중.
+function parseBool(rec: Record<string, unknown>, key: string, dflt: boolean) {
+  return key in rec ? !!rec[key] : dflt;
+}
+
+const FIXED_IMAGE_EFFECTS: FixedImageEffect[] = [
+  "none",
+  "blink",
+  "bounce",
+  "shake",
+  "pulse",
+  "glow",
+];
+
+// 저장된 값이 없으면(= 옛 DB 행) 옛 렌더러의 기본 동작인 깜빡임으로 복원한다.
+// "없음"으로 두면 기존 사이트들이 편집기·라이브에서 실제와 다르게 보이고,
+// 그 상태로 한 번 저장하면 원래 동작을 잃는다. (parseAnimation 과 같은 이유)
+// 값이 명시돼 있으면 "none" 포함 그대로 따른다.
+function parseFixedImageEffect(rec: Record<string, unknown>): FixedImageEffect {
+  if (!("fixedImageEffect" in rec)) return "blink";
+  const s = asString(rec.fixedImageEffect);
+  return (FIXED_IMAGE_EFFECTS as string[]).includes(s)
+    ? (s as FixedImageEffect)
+    : "none";
 }
 
 function tryParseJson(v: unknown): unknown {
@@ -67,20 +150,197 @@ function pickRecord(v: unknown): Record<string, unknown> {
     : {};
 }
 
+// 옛 DB 에는 '이미지 없음'이 빈 문자열이 아니라 "0" · "null" 같은 값으로 들어 있는
+// 행이 있다. 옛 렌더러는 이런 값을 없는 것으로 취급했지만 그대로 URL 로 만들어버리면
+// 깨진 이미지가 남는다 (예: 원본엔 안 뜨던 팝업이 이미지 없는 빈 창으로 뜸).
+const EMPTY_ASSET_SENTINELS = new Set([
+  "0",
+  "null",
+  "undefined",
+  "none",
+  "false",
+  "-",
+  "#",
+]);
+
 function resolveAsset(path: string): string | null {
-  if (!path) return null;
-  if (/^(https?:|data:|blob:)/i.test(path) || path.startsWith("/")) {
-    return path;
+  const p = path.trim();
+  if (!p || EMPTY_ASSET_SENTINELS.has(p.toLowerCase())) return null;
+  if (/^(https?:|data:|blob:)/i.test(p) || p.startsWith("/")) {
+    return p;
   }
-  return ASSET_BASE ? `${ASSET_BASE}/${path}` : path;
+  return ASSET_BASE ? `${ASSET_BASE}/${p}` : p;
 }
 
-function contentListToSections(contentList: unknown[]): Section[] {
-  const out: Section[] = [];
+// ── 옛 관리자와 ld_json_main 을 공유하기 위한 사이드카 메타 ────────────────────
+// 옛 관리자 페이지가 저장하면 contentList 를 통째로 다시 쓰면서 신규 키
+// (sectionType · heroText · effectType · imgEffect …) 를 전부 날려버린다.
+// 그러면 메인 배너 · 유튜브 · HTML 섹션이 통째로 사라지고 제목 · 애니메이션 종류가
+// 리셋된다. 그래서 같은 값을 옛 관리자가 모르는 컬럼(ld_json_secmeta)에 복사해 두고,
+// 읽을 때 contentList 위에 덮어써서 복구한다.
+//
+// 인덱스가 어긋나면(옛 관리자가 섹션을 추가 · 삭제 · 재정렬) 엉뚱한 섹션에 메타가
+// 붙으므로, 저장 시 contentList 의 '모양'을 함께 기록해 두고 읽을 때 대조한다.
+// 다르면 사이드카를 통째로 버리고 contentList 만으로 파싱한다(= 사이드카 이전 동작).
+// 본문 문구나 이미지 URL 은 모양에 넣지 않는다 — 옛 관리자에서 텍스트만 고쳤다고
+// 애니메이션까지 날릴 이유는 없다.
+const SECMETA_KEYS = [
+  "sectionType",
+  "sectionTitle",
+  "heroText",
+  "heroTextPos",
+  "imgEffect",
+  "effectType",
+  "videoUrl",
+  "inviteTitle",
+] as const;
+
+// imgList 항목 하나가 섹션 하나인 경우(이미지 섹션)의 항목별 키.
+const SECMETA_IMG_KEYS = ["secTitle", "imgEffect"] as const;
+
+function contentShape(contentList: unknown[]): string {
+  return contentList
+    .map((item) => {
+      const rec = pickRecord(item);
+      if (Array.isArray(rec.imgList)) return `img:${rec.imgList.length}`;
+      if (Array.isArray(rec.formList)) return "form";
+      if (asString(rec.text) || asString(rec.content)) return "text";
+      return "other";
+    })
+    .join(",");
+}
+
+function buildSecMeta(contentList: unknown[]): string {
+  const items: Record<string, Record<string, unknown>> = {};
   contentList.forEach((item, idx) => {
     const rec = pickRecord(item);
+    const meta: Record<string, unknown> = {};
+    for (const k of SECMETA_KEYS) {
+      if (rec[k] !== undefined) meta[k] = rec[k];
+    }
+    if (Array.isArray(rec.imgList)) {
+      const imgItems = rec.imgList.map((g) => {
+        const gr = pickRecord(g);
+        const one: Record<string, unknown> = {};
+        for (const k of SECMETA_IMG_KEYS) {
+          if (gr[k] !== undefined) one[k] = gr[k];
+        }
+        return one;
+      });
+      if (imgItems.some((o) => Object.keys(o).length > 0)) meta.imgItems = imgItems;
+    }
+    if (Object.keys(meta).length > 0) items[String(idx)] = meta;
+  });
+  return JSON.stringify({ v: 1, shape: contentShape(contentList), items });
+}
+
+function parseSecMeta(
+  raw: unknown,
+  contentList: unknown[],
+): Record<number, Record<string, unknown>> {
+  const rec = pickRecord(tryParseJson(raw));
+  if (rec.v !== 1) return {};
+  // 모양이 달라졌으면 인덱스를 못 믿는다 → 사이드카 폐기.
+  if (asString(rec.shape) !== contentShape(contentList)) return {};
+  const out: Record<number, Record<string, unknown>> = {};
+  for (const [k, v] of Object.entries(pickRecord(rec.items))) {
+    const i = Number(k);
+    if (Number.isInteger(i)) out[i] = pickRecord(v);
+  }
+  return out;
+}
+
+function contentListToSections(
+  contentList: unknown[],
+  meta: Record<number, Record<string, unknown>> = {},
+): Section[] {
+  const out: Section[] = [];
+  contentList.forEach((item, idx) => {
+    // 사이드카 메타를 contentList 항목 위에 덮어쓴 뒤 기존 파싱 로직을 그대로 태운다.
+    // (옛 관리자가 키를 지웠어도 여기서 되살아난다)
+    let rec = pickRecord(item);
+    const m = meta[idx];
+    if (m) {
+      rec = { ...rec, ...m };
+      delete rec.imgItems;
+      if (Array.isArray(m.imgItems) && Array.isArray(rec.imgList)) {
+        const imgItems = m.imgItems;
+        rec.imgList = rec.imgList.map((g, i) => ({
+          ...pickRecord(g),
+          ...pickRecord(imgItems[i]),
+        }));
+      }
+    }
     const sourceItem: LegacyContentItem = rec;
     const animated = parseAnimation(rec);
+
+    // 메인 배너(hero). 옛 포맷엔 전용 슬롯이 없어 imgList 한 장 + `sectionType: "hero"`
+    // 표식으로 저장한다. imgList 분기보다 먼저 봐야 갤러리로 오인되지 않음.
+    // 이미지가 비어 있어도(placeholder 미교체 등) 섹션 자체는 살려둔다 —
+    // 여기서 걸러버리면 배너가 통째로 사라진다.
+    if (asString(rec.sectionType) === "hero") {
+      const first = Array.isArray(rec.imgList)
+        ? pickRecord(rec.imgList[0])
+        : {};
+      out.push({
+        id: `sec-${idx}-hero`,
+        type: "hero",
+        title: asString(rec.sectionTitle),
+        image: resolveAsset(asString(first.url)),
+        content: asString(rec.heroText),
+        textPosition: parseHeroTextPosition(rec.heroTextPos),
+        effect: parseImageEffect(rec.imgEffect),
+        animation: animated,
+        legacy: { contentListIndex: idx, sourceItem },
+      });
+      return;
+    }
+
+    // 이미지 섹션. 표식이 없으면 아래 imgList 분기에서 갤러리 한 개로 합쳐져
+    // 타입이 뒤바뀐다. imgList 항목 하나가 섹션 하나이므로 제목·꾸미기도 항목에서 읽음.
+    if (asString(rec.sectionType) === "image") {
+      const imgList = Array.isArray(rec.imgList) ? rec.imgList : [];
+      imgList.forEach((img, i) => {
+        const imgRec = pickRecord(img);
+        out.push({
+          id: `sec-${idx}-img-${i}`,
+          type: "image",
+          title: asString(imgRec.secTitle),
+          image: resolveAsset(asString(imgRec.url)),
+          content: "",
+          effect: parseImageEffect(imgRec.imgEffect),
+          animation: animated,
+          legacy: { contentListIndex: idx, sourceItem, imgListIndex: i },
+        });
+      });
+      return;
+    }
+
+    if (asString(rec.sectionType) === "youtube") {
+      out.push({
+        id: `sec-${idx}-youtube`,
+        type: "youtube",
+        title: asString(rec.sectionTitle),
+        image: null,
+        content: asString(rec.videoUrl),
+        animation: animated,
+        legacy: { contentListIndex: idx, sourceItem },
+      });
+      return;
+    }
+
+    if (asString(rec.sectionType) === "html") {
+      out.push({
+        id: `sec-${idx}-html`,
+        type: "html",
+        title: asString(rec.sectionTitle),
+        image: null,
+        content: asString(rec.text),
+        animation: animated,
+        legacy: { contentListIndex: idx, sourceItem },
+      });
+      return;
+    }
 
     if (Array.isArray(rec.imgList) && rec.imgList.length > 0) {
       const images: GalleryImage[] = rec.imgList.flatMap((img, i) => {
@@ -91,15 +351,17 @@ function contentListToSections(contentList: unknown[]): Section[] {
         if (!resolved) return [];
         return [{ id: `sec-${idx}-img-${i}`, image: resolved, legacy: imgRec }];
       });
-      if (images.length > 0) {
+      // 표식이 있는(= 새 에디터가 저장한) 갤러리는 이미지가 전부 비어도 섹션을 유지한다.
+      // 구버전 데이터는 종전대로 빈 항목을 버림 — 옛 행에서 빈 섹션이 되살아나지 않게.
+      if (images.length > 0 || asString(rec.sectionType) === "gallery") {
         out.push({
           id: `sec-${idx}-gallery`,
           type: "gallery",
-          title: "",
+          title: asString(rec.sectionTitle),
           image: null,
           images,
           content: "",
-          effect: "none",
+          effect: parseImageEffect(rec.imgEffect),
           animation: animated,
           legacy: { contentListIndex: idx, sourceItem },
         });
@@ -114,7 +376,7 @@ function contentListToSections(contentList: unknown[]): Section[] {
         out.push({
           id: `sec-${idx}-invite`,
           type: "image",
-          title: "",
+          title: asString(rec.inviteTitle),
           image: inviteImg,
           content: "",
           link: "/sms",
@@ -143,7 +405,7 @@ function contentListToSections(contentList: unknown[]): Section[] {
       out.push({
         id: `sec-${idx}-form`,
         type: "form",
-        title: "",
+        title: asString(rec.sectionTitle),
         image: subjectImg,
         content: "",
         formVariant: "consult",
@@ -158,6 +420,7 @@ function contentListToSections(contentList: unknown[]): Section[] {
           agreeMode,
           agreeAddWords,
         },
+        animation: animated,
         legacy: { contentListIndex: idx, sourceItem },
       });
       return;
@@ -168,9 +431,10 @@ function contentListToSections(contentList: unknown[]): Section[] {
       out.push({
         id: `sec-${idx}-text`,
         type: "text",
-        title: "",
+        title: asString(rec.sectionTitle),
         image: null,
         content: text,
+        animation: animated,
         legacy: { contentListIndex: idx, sourceItem },
       });
     }
@@ -286,9 +550,13 @@ function landToSettings(land: Land): Settings {
   const mainFirst = Array.isArray(mainJson)
     ? pickRecord(mainJson[0])
     : pickRecord(mainJson);
-  const sections = Array.isArray(mainFirst.contentList)
-    ? contentListToSections(mainFirst.contentList)
+  const mainContentList = Array.isArray(mainFirst.contentList)
+    ? mainFirst.contentList
     : [];
+  const sections = contentListToSections(
+    mainContentList,
+    parseSecMeta(land.ld_json_secmeta, mainContentList),
+  );
 
   // ld_json_subpages 가 우선 — 신규 에디터가 source of truth 로 쓰는 컬럼.
   // 마이그레이션 전 / 신규 생성 row 라 NULL 이면 옛 ld_json_menus + ld_pg* 로 폴백.
@@ -311,12 +579,17 @@ function landToSettings(land: Land): Settings {
   const jsonEnabled = pickRecord(tryParseJson(land.ld_json_enabled));
   const jsonFooter = pickRecord(tryParseJson(land.ld_json_footer));
   const jsonLocation = pickRecord(tryParseJson(land.ld_json_location));
+  // 옛 스키마에 대응하는 자리가 없는 신규 설정들의 보관소.
+  const jsonInfo = pickRecord(tryParseJson(land.ld_json_info));
+  const jsonInfoMenu = pickRecord(jsonInfo.menu);
 
   const popupImage = resolveAsset(asString(land.ld_popup_img));
   const hasKakao = !!asString(land.ld_kakao);
   const hasSms = !!asString(land.ld_sms_num);
   const bottomPhoneImg = resolveAsset(asString(land.ld_mobile_bt_phone_img));
   const bottomConsultImg = resolveAsset(asString(land.ld_mobile_bt_event_img));
+  const jsonBottomPhone = pickRecord(jsonBottom.phone);
+  const jsonBottomConsult = pickRecord(jsonBottom.consult);
   const hasBottomData =
     !!bottomPhoneImg || !!bottomConsultImg || Object.keys(jsonBottom).length > 0;
 
@@ -386,6 +659,24 @@ function landToSettings(land: Land): Settings {
         initialSettings.subMenus.bgColor,
       ),
       padding: asString(menusJson.padding_y, initialSettings.subMenus.padding),
+      // 메뉴 테두리 · 글자 설정은 옛 스키마에 없던 값 → ld_json_info 에 보관.
+      // 값이 없는 옛 행은 기본값(하단 테두리만 1px, 지금까지 보이던 모습)으로.
+      borderTop: parseBool(
+        jsonInfoMenu,
+        "borderTop",
+        initialSettings.subMenus.borderTop,
+      ),
+      borderBottom: parseBool(
+        jsonInfoMenu,
+        "borderBottom",
+        initialSettings.subMenus.borderBottom,
+      ),
+      borderWidth: asString(jsonInfoMenu.borderWidth),
+      borderColor: normalizeColor(asString(jsonInfoMenu.borderColor), ""),
+      fontSize: asString(jsonInfoMenu.fontSize),
+      fontWeight: parseMenuFontWeight(jsonInfoMenu.fontWeight),
+      font: (asString(jsonInfoMenu.font) ||
+        initialSettings.subMenus.font) as FontKey,
       items: [], // 옛 데이터엔 별도 subMenus 없음 — header.menus 가 진짜 메뉴
     },
     popupImage,
@@ -404,6 +695,7 @@ function landToSettings(land: Land): Settings {
       fixedImageLink: asString(land.ld_invite_image_link),
       fixedImageLinkType:
         asString(land.ld_invite_image_link_type) === "form" ? "form" : "url",
+      fixedImageEffect: parseFixedImageEffect(jsonInfo),
     },
     bottomFixed: {
       ...initialSettings.bottomFixed,
@@ -413,28 +705,37 @@ function landToSettings(land: Land): Settings {
       ),
       font: (asString(jsonBottom.font) ||
         initialSettings.bottomFixed.font) as Settings["bottomFixed"]["font"],
+      // enabled · mode 는 ld_json_bottom 에 저장된 값이 우선.
+      // 예전엔 옛 컬럼(ld_mobile_bt_*_img · ld_phone_num)에서만 유추했는데,
+      // 그러면 "이미지 없이 텍스트 버튼만" 구성한 경우 저장은 되지만 다시 불러올 때
+      // enabled 가 false 로 덮여 하단바가 통째로 사라졌다.
+      // 키가 없는 구버전 행은 종전대로 옛 컬럼에서 유추한다.
       phone: {
         ...initialSettings.bottomFixed.phone,
-        ...pickRecord(jsonBottom.phone),
-        enabled: !!bottomPhoneImg || !!asString(land.ld_phone_num),
-        mode: bottomPhoneImg ? "image" : "text",
-        image:
-          bottomPhoneImg ||
-          asString(pickRecord(jsonBottom.phone).image) ||
-          null,
-        link:
-          asString(land.ld_phone_num) ||
-          asString(pickRecord(jsonBottom.phone).link),
+        ...jsonBottomPhone,
+        enabled:
+          "enabled" in jsonBottomPhone
+            ? !!jsonBottomPhone.enabled
+            : !!bottomPhoneImg || !!asString(land.ld_phone_num),
+        mode: parseBottomMode(
+          jsonBottomPhone.mode,
+          bottomPhoneImg ? "image" : "text",
+        ),
+        image: bottomPhoneImg || asString(jsonBottomPhone.image) || null,
+        link: asString(land.ld_phone_num) || asString(jsonBottomPhone.link),
       },
       consult: {
         ...initialSettings.bottomFixed.consult,
-        ...pickRecord(jsonBottom.consult),
-        enabled: !!bottomConsultImg,
-        mode: bottomConsultImg ? "image" : "text",
-        image:
-          bottomConsultImg ||
-          asString(pickRecord(jsonBottom.consult).image) ||
-          null,
+        ...jsonBottomConsult,
+        enabled:
+          "enabled" in jsonBottomConsult
+            ? !!jsonBottomConsult.enabled
+            : !!bottomConsultImg,
+        mode: parseBottomMode(
+          jsonBottomConsult.mode,
+          bottomConsultImg ? "image" : "text",
+        ),
+        image: bottomConsultImg || asString(jsonBottomConsult.image) || null,
       },
     },
     countdown: {
@@ -692,6 +993,27 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
   const first = group[0];
   const source = first.legacy?.sourceItem ?? {};
 
+  // 메인 배너(hero). 옛 포맷에 전용 슬롯이 없어 imgList 한 장에 담고,
+  // 갤러리/이미지 섹션과 구분되도록 `sectionType: "hero"` 표식을 함께 저장한다.
+  // 이 분기가 없으면 아래 폴백(`{ ...source }`)으로 떨어져 신규 hero 가 빈 `{}` 로
+  // 저장되고, 읽을 때 어느 분기에도 안 걸려 배너가 통째로 사라진다.
+  const heroSec = group.find((s) => s.type === "hero");
+  if (heroSec) {
+    return {
+      ...source,
+      sectionType: "hero",
+      sectionTitle: heroSec.title,
+      imgList: [{ url: stripAssetBase(heroSec.image) }],
+      heroText: heroSec.content,
+      heroTextPos: heroSec.textPosition ?? "center",
+      imgEffect: heroSec.effect ?? "none",
+      align: "center",
+      effect:
+        heroSec.animation && heroSec.animation !== "none" ? "on" : "off",
+      effectType: heroSec.animation ?? "none",
+    };
+  }
+
   // 폼 그룹이면 (form 섹션이 있으면) form 으로 재조립.
   // form-invite 표식 image 섹션이 있으면 그 image url 을 formInviteImg 로 복원.
   const formSec = group.find((s) => s.type === "form");
@@ -701,6 +1023,11 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
     );
     const next: LegacyContentItem = { ...source };
     const fd = formSec.formData ?? {};
+
+    // 섹션 제목(에디터 목록에 보이는 이름) — 폼과 초대 이미지가 각각 별도 섹션이라 키도 따로.
+    next.sectionTitle = formSec.title;
+    if (inviteSec) next.inviteTitle = inviteSec.title;
+    else delete next.inviteTitle;
 
     if (inviteSec?.image) {
       next.formInviteImg = stripAssetBase(inviteSec.image);
@@ -743,6 +1070,9 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
     if (!Array.isArray(next.formList))
       next.formList = [{ type: "name" }, { type: "phone" }];
     if (!next.formInviteType) next.formInviteType = "image";
+    next.effect =
+      formSec.animation && formSec.animation !== "none" ? "on" : "off";
+    next.effectType = formSec.animation ?? "none";
     return next;
   }
 
@@ -753,6 +1083,9 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
     const items = gallerySec.images ?? [];
     return {
       ...source,
+      sectionType: "gallery",
+      sectionTitle: gallerySec.title,
+      imgEffect: gallerySec.effect ?? "none",
       imgList: items.map((g) => ({
         ...(g.legacy ?? {}),
         url: stripAssetBase(g.image),
@@ -764,42 +1097,92 @@ function rebuildContentItem(group: Section[]): LegacyContentItem {
     };
   }
 
-  // 이미지만 있는 그룹: 원본 imgList 위치에 새 url 끼워넣음
+  // 이미지만 있는 그룹: 원본 imgList 위치에 새 url 끼워넣음.
+  // imgList 항목 하나 = 이미지 섹션 하나이므로 제목·꾸미기는 항목 안에 담는다
+  // (그래야 한 그룹에 여러 장이 있어도 섹션별로 따로 복원된다).
+  // `sectionType: "image"` 표식이 없으면 읽을 때 갤러리로 합쳐져버린다.
   const imageSections = group.filter((s) => s.type === "image");
-  if (imageSections.length > 0 && Array.isArray(source.imgList)) {
-    const origImgList = source.imgList as Record<string, unknown>[];
-    const nextImgList = imageSections.map((sec) => {
-      const i = sec.legacy?.imgListIndex;
-      const orig = typeof i === "number" ? origImgList[i] ?? {} : {};
-      return { ...orig, url: stripAssetBase(sec.image) };
-    });
-    return { ...source, imgList: nextImgList };
-  }
   if (imageSections.length > 0) {
+    const origImgList = Array.isArray(source.imgList)
+      ? (source.imgList as Record<string, unknown>[])
+      : [];
     return {
-      imgList: imageSections.map((sec) => ({
-        url: stripAssetBase(sec.image),
-      })),
+      ...source,
+      sectionType: "image",
+      imgList: imageSections.map((sec) => {
+        const i = sec.legacy?.imgListIndex;
+        const orig = typeof i === "number" ? origImgList[i] ?? {} : {};
+        return {
+          ...orig,
+          url: stripAssetBase(sec.image),
+          secTitle: sec.title,
+          imgEffect: sec.effect ?? "none",
+        };
+      }),
       align: "center",
       effect: first.animation && first.animation !== "none" ? "on" : "off",
       effectType: first.animation ?? "none",
     };
   }
 
+  // 유튜브 · HTML 섹션. 전용 분기가 없으면 맨 아래 폴백으로 떨어져
+  // 빈 `{}` 로 저장되고 읽을 때 사라진다 (hero 와 같은 버그).
+  const youtubeSec = group.find((s) => s.type === "youtube");
+  if (youtubeSec) {
+    return {
+      ...source,
+      sectionType: "youtube",
+      sectionTitle: youtubeSec.title,
+      videoUrl: youtubeSec.content,
+      effect:
+        youtubeSec.animation && youtubeSec.animation !== "none" ? "on" : "off",
+      effectType: youtubeSec.animation ?? "none",
+    };
+  }
+
+  const htmlSec = group.find((s) => s.type === "html");
+  if (htmlSec) {
+    // 표식이 유실돼도 텍스트 섹션으로 읽히도록 본문은 `text` 에 담는다.
+    return {
+      ...source,
+      sectionType: "html",
+      sectionTitle: htmlSec.title,
+      text: htmlSec.content,
+      effect: htmlSec.animation && htmlSec.animation !== "none" ? "on" : "off",
+      effectType: htmlSec.animation ?? "none",
+    };
+  }
+
   // 텍스트 그룹
   const textSec = group.find((s) => s.type === "text");
   if (textSec) {
-    return { ...source, text: textSec.content };
+    return {
+      ...source,
+      sectionType: "text",
+      sectionTitle: textSec.title,
+      text: textSec.content,
+      effect: textSec.animation && textSec.animation !== "none" ? "on" : "off",
+      effectType: textSec.animation ?? "none",
+    };
   }
 
   // 폴백
   return { ...source };
 }
 
-function settingsToMainJson(s: Settings): string {
+// ld_json_main 문자열과, 사이드카 메타를 뽑을 contentList 를 함께 돌려준다.
+function settingsToMainJson(s: Settings): {
+  json: string;
+  contentList: unknown[];
+} {
   // 사용자가 sections 비웠고 raw 원본이 있으면 그대로 (편집 안 한 케이스)
   if (s.sections.length === 0 && s.legacy?.rawJsonMain) {
-    return s.legacy.rawJsonMain;
+    const raw = tryParseJson(s.legacy.rawJsonMain);
+    const first = Array.isArray(raw) ? pickRecord(raw[0]) : pickRecord(raw);
+    return {
+      json: s.legacy.rawJsonMain,
+      contentList: Array.isArray(first.contentList) ? first.contentList : [],
+    };
   }
 
   // contentListIndex 별로 묶음. legacy 없는 신규 섹션은 max+1 부터 부여.
@@ -829,17 +1212,16 @@ function settingsToMainJson(s: Settings): string {
     .sort(([a], [b]) => a - b)
     .map(([, group]) => rebuildContentItem(group));
 
-  return JSON.stringify([
-    {
-      ...rawWrapper,
-      contentList,
-    },
-  ]);
+  return {
+    json: JSON.stringify([{ ...rawWrapper, contentList }]),
+    contentList,
+  };
 }
 
 export type LandPatch = Record<string, string | number | null>;
 
 export function settingsToLand(s: Settings): LandPatch {
+  const main = settingsToMainJson(s);
   return {
     // === 평면 컬럼 (라이브 사이트가 직접 읽음) ===
     ld_domain: s.domain,
@@ -874,7 +1256,10 @@ export function settingsToLand(s: Settings): LandPatch {
     // === 옛 JSON 컬럼 (라이브 사이트가 파싱해서 읽음) ===
     ld_json_header: settingsToHeaderJson(s),
     ld_json_menus: settingsToMenusJson(s),
-    ld_json_main: settingsToMainJson(s),
+    ld_json_main: main.json,
+    // 옛 관리자가 ld_json_main 을 덮어써도 신규 키를 되살릴 수 있게 복사본을 남긴다.
+    // (옛 관리자는 이 컬럼의 존재를 모르므로 건드리지 않는다)
+    ld_json_secmeta: buildSecMeta(main.contentList),
 
     // === legacy carry-over (라이브 사이트가 계속 읽지만 새 에디터 UI는 안 건드림) ===
     // fixedImage 는 이제 info.fixedImage 가 source of truth. 없으면 legacy 폴백.
@@ -883,6 +1268,20 @@ export function settingsToLand(s: Settings): LandPatch {
     ),
     ld_invite_image_link: s.info.fixedImageLink,
     ld_invite_image_link_type: s.info.fixedImageLinkType,
+    // 옛 스키마에 자리가 없는 신규 설정들. 새 값이 생기면 여기에 더한다.
+    // ld_json_menus 가 아니라 여기 두는 이유: 그 컬럼은 옛 관리자도 덮어쓴다.
+    ld_json_info: JSON.stringify({
+      fixedImageEffect: s.info.fixedImageEffect,
+      menu: {
+        borderTop: s.subMenus.borderTop,
+        borderBottom: s.subMenus.borderBottom,
+        borderWidth: s.subMenus.borderWidth,
+        borderColor: s.subMenus.borderColor,
+        fontSize: s.subMenus.fontSize,
+        fontWeight: s.subMenus.fontWeight,
+        font: s.subMenus.font,
+      },
+    }),
     // sms.content 도 정식 슬롯. 빈 값이면 legacy 폴백.
     ld_sms_content: s.quickConnect.sms.content || s.legacy?.smsContent || "",
     // location.address 도 user-editable. 새 값 없으면 legacy 폴백.

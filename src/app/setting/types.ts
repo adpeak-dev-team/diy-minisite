@@ -18,6 +18,8 @@ export type FontKey =
     | "gaegu"
     | "nanum-pen";
 export type OnOff = "on" | "off";
+
+export type MenuFontWeight = "300" | "400" | "500" | "600" | "700" | "800";
 export type HeaderAlign = "left" | "center" | "right";
 
 export type SectionType =
@@ -72,6 +74,18 @@ export type CountdownPosition = "top" | "bottom" | "floating";
 export type BottomSlotMode = "image" | "text";
 // 클릭 시 동작 — "url" 은 link 로 이동, "form" 은 페이지 내 마지막 폼으로 스크롤.
 export type FixedLinkType = "url" | "form";
+
+// 우측 고정 이미지의 시선 끌기용 반복 애니메이션.
+// 섹션의 '나타나는 효과'(SectionAnimation)는 한 번만 재생되는 진입 연출이라 별개다.
+// "blink" 는 옛 렌더러가 우측 고정 이미지에 걸던 기본 동작(투명해졌다 돌아오기)이다.
+// 옛 DB 행에는 이 설정 자체가 없으므로 값이 없으면 blink 로 복원한다(api.ts 참고).
+export type FixedImageEffect =
+    | "none"
+    | "blink"
+    | "bounce"
+    | "shake"
+    | "pulse"
+    | "glow";
 
 export type BottomSlot = {
     enabled: boolean;
@@ -248,6 +262,14 @@ export type Settings = {
         textColor: string;
         font: FontKey;
         padding: string;
+        // 상·하단 테두리. width/color 는 빈 값이면 기본값(1px · 헤더 밝기에 맞춘 색).
+        borderTop: boolean;
+        borderBottom: boolean;
+        borderWidth: string;
+        borderColor: string;
+        // 메뉴 글자. fontSize 가 빈 값이면 기본(PC 14px · 모바일 12px).
+        fontSize: string;
+        fontWeight: MenuFontWeight;
         items: MenuItem[];
     };
     popupImage: string | null;
@@ -262,6 +284,7 @@ export type Settings = {
         fixedImage: string | null;       // 우측 고정 원형 이미지 (옛 ld_invite_image)
         fixedImageLink: string;          // 클릭 시 이동할 url (linkType === "url" 일 때)
         fixedImageLinkType: FixedLinkType; // "url" 외 이동 / "form" 페이지 마지막 폼으로 스크롤
+        fixedImageEffect: FixedImageEffect; // 시선 끌기용 반복 애니메이션
     };
     bottomFixed: {
         height: string;
@@ -337,6 +360,24 @@ export const IMAGE_EFFECT_LABEL: Record<ImageEffect, string> = {
     blur: "블러",
     "hover-zoom": "호버 줌",
     gradient: "하단 그라데이션",
+};
+
+export const MENU_FONT_WEIGHT_LABEL: Record<MenuFontWeight, string> = {
+    "300": "얇게 (300)",
+    "400": "보통 (400)",
+    "500": "중간 (500)",
+    "600": "약간 굵게 (600)",
+    "700": "굵게 (700)",
+    "800": "매우 굵게 (800)",
+};
+
+export const FIXED_IMAGE_EFFECT_LABEL: Record<FixedImageEffect, string> = {
+    none: "없음",
+    blink: "깜빡임",
+    bounce: "통통 튀기",
+    shake: "흔들기",
+    pulse: "맥박",
+    glow: "반짝임",
 };
 
 export const FORM_VARIANT_LABEL: Record<FormVariant, string> = {
@@ -416,6 +457,12 @@ export const initialSettings: Settings = {
         textColor: "#334155",
         font: "pretendard",
         padding: "",
+        borderTop: false,
+        borderBottom: true,
+        borderWidth: "",
+        borderColor: "",
+        fontSize: "",
+        fontWeight: "500",
         items: [{ id: "m-1", name: "e-모델하우스", link: "e-modelhouse" }],
     },
     popupImage: null,
@@ -430,6 +477,7 @@ export const initialSettings: Settings = {
         fixedImage: null,
         fixedImageLink: "",
         fixedImageLinkType: "url",
+        fixedImageEffect: "none",
     },
     bottomFixed: {
         height: "64",

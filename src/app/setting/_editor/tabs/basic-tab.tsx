@@ -1,8 +1,15 @@
 "use client";
 
-import { Settings } from "../../types";
+import {
+    FIXED_IMAGE_EFFECT_LABEL,
+    FixedImageEffect,
+    MENU_FONT_WEIGHT_LABEL,
+    MenuFontWeight,
+    Settings,
+} from "../../types";
 import {
     AccordionSection,
+    ColorField,
     ColorPicker,
     Field,
     FontSelect,
@@ -240,12 +247,13 @@ export function HeaderSubTab() {
                     ]}
                 />
             </Field>
-            <Field label="상단 색상">
-                <ColorPicker
-                    value={s.header.color}
-                    onChange={(v) => updateHeader("color", v)}
-                />
-            </Field>
+            {/*
+              '상단 색상'(header.color) 입력은 편집 UI 에서 뺐다.
+              값 자체는 그대로 살아 있고 저장·복원도 계속된다 —
+              헤더 바 배경, 메뉴 strip 배경(subMenus.bgColor 폴백),
+              글자색·기본 테두리색 자동 결정(chrome.tsx 의 isLightColor)에 쓰이므로
+              지우면 기존 사이트 색이 전부 기본값으로 바뀐다.
+            */}
             <Field label="위아래 여백 (px)" hint="기본 12px">
                 <input
                     type="number"
@@ -346,8 +354,15 @@ export function HeaderSubTab() {
 }
 
 export function MenuTab() {
-    const { s, update, updateHeader, updateEnabled, currentPageId, editPageDesign } =
-        useSettings();
+    const {
+        s,
+        update,
+        updateHeader,
+        updateEnabled,
+        updateSubMenus,
+        currentPageId,
+        editPageDesign,
+    } = useSettings();
     const anyParentWithChildren = s.subPages.some(
         (p) => (p.children ?? []).length > 0,
     );
@@ -385,6 +400,120 @@ export function MenuTab() {
                     onSelectPage={editPageDesign}
                 />
             </AccordionSection>
+
+            {s.header.menuEnabled ? (
+                <AccordionSection
+                    title="메뉴 디자인"
+                    desc="상단 메뉴 줄의 테두리 · 글자 설정"
+                    anchor="menudesign"
+                >
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="w-3.5 h-3.5 accent-blue-600"
+                                    checked={s.subMenus.borderTop}
+                                    onChange={(e) =>
+                                        updateSubMenus("borderTop", e.target.checked)
+                                    }
+                                />
+                                상단 테두리
+                            </label>
+                            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="w-3.5 h-3.5 accent-blue-600"
+                                    checked={s.subMenus.borderBottom}
+                                    onChange={(e) =>
+                                        updateSubMenus(
+                                            "borderBottom",
+                                            e.target.checked,
+                                        )
+                                    }
+                                />
+                                하단 테두리
+                            </label>
+                        </div>
+
+                        {s.subMenus.borderTop || s.subMenus.borderBottom ? (
+                            <>
+                                <Field label="테두리 굵기" hint="비우면 1px">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={20}
+                                        placeholder="1"
+                                        className="input-base w-full text-xs"
+                                        value={s.subMenus.borderWidth}
+                                        onChange={(e) =>
+                                            updateSubMenus(
+                                                "borderWidth",
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </Field>
+                                <ColorField
+                                    label="테두리 색상"
+                                    hint="비우면 헤더 밝기에 맞춘 기본색"
+                                    value={s.subMenus.borderColor}
+                                    onChange={(v) =>
+                                        updateSubMenus("borderColor", v)
+                                    }
+                                />
+                            </>
+                        ) : null}
+
+                        <Field
+                            label="글자 크기"
+                            hint="PC 기준 (비우면 14px) · 모바일은 같은 비율로 자동 축소"
+                        >
+                            <input
+                                type="number"
+                                min={8}
+                                max={40}
+                                placeholder="14"
+                                className="input-base w-full text-xs"
+                                value={s.subMenus.fontSize}
+                                onChange={(e) =>
+                                    updateSubMenus("fontSize", e.target.value)
+                                }
+                            />
+                        </Field>
+
+                        <Field label="글자 굵기">
+                            <select
+                                className="input-base w-full text-xs"
+                                value={s.subMenus.fontWeight}
+                                onChange={(e) =>
+                                    updateSubMenus(
+                                        "fontWeight",
+                                        e.target.value as MenuFontWeight,
+                                    )
+                                }
+                            >
+                                {(
+                                    Object.keys(
+                                        MENU_FONT_WEIGHT_LABEL,
+                                    ) as MenuFontWeight[]
+                                ).map((k) => (
+                                    <option key={k} value={k}>
+                                        {MENU_FONT_WEIGHT_LABEL[k]}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
+
+                        <Field label="글씨체">
+                            <FontSelect
+                                value={s.subMenus.font}
+                                onChange={(v) => updateSubMenus("font", v)}
+                            />
+                        </Field>
+                    </div>
+                </AccordionSection>
+            ) : null}
 
             {anyParentWithChildren ? (
                 <AccordionSection title="하위 페이지 열기 방식">
@@ -579,6 +708,28 @@ export function FixedSubTab() {
                 </Field>
                 {s.info.fixedImage ? (
                     <>
+                        <Field label="시선 끌기 효과">
+                            <select
+                                className="input-base w-full text-xs"
+                                value={s.info.fixedImageEffect}
+                                onChange={(e) =>
+                                    updateInfo(
+                                        "fixedImageEffect",
+                                        e.target.value as FixedImageEffect,
+                                    )
+                                }
+                            >
+                                {(
+                                    Object.keys(
+                                        FIXED_IMAGE_EFFECT_LABEL,
+                                    ) as FixedImageEffect[]
+                                ).map((k) => (
+                                    <option key={k} value={k}>
+                                        {FIXED_IMAGE_EFFECT_LABEL[k]}
+                                    </option>
+                                ))}
+                            </select>
+                        </Field>
                         {anyFormExists(s) ? (
                             <Field label="클릭 동작">
                                 <RadioPill

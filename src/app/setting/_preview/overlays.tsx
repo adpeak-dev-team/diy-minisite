@@ -1,7 +1,7 @@
 "use client";
 
 import { MouseEvent, useEffect, useState } from "react";
-import { BottomSlot, Settings } from "../types";
+import { BottomSlot, FixedImageEffect, Settings } from "../types";
 import { fontFamilyOf, parsePxOr } from "../lib";
 
 // 페이지 내 마지막 폼 위치로 부드럽게 스크롤. preview 프레임은 한 번에 하나만 렌더되므로
@@ -139,23 +139,46 @@ export function QuickConnectButtons({
     );
 }
 
+// 시선 끌기 애니메이션 → globals.css 의 클래스.
+const FIXED_IMAGE_FX_CLASS: Record<FixedImageEffect, string> = {
+    none: "",
+    blink: "fx-blink",
+    bounce: "fx-bounce",
+    shake: "fx-shake",
+    pulse: "fx-pulse",
+    glow: "fx-glow",
+};
+
+// transform 을 쓰는 효과는 hover:scale 과 서로 덮어써서 둘 다 어색해진다 → 호버 확대는 뺀다.
+// (glow 는 box-shadow 라 충돌 없음)
+const FIXED_IMAGE_FX_USES_TRANSFORM = new Set<FixedImageEffect>([
+    "bounce",
+    "shake",
+    "pulse",
+]);
+
 export function FixedImageFloating({
     src,
     bottomOffset,
+    effect = "none",
 }: {
     src: string;
     bottomOffset: number;
+    effect?: FixedImageEffect;
     link?: string;
     linkType?: "url" | "form";
 }) {
     // 미리보기 전용 — 클릭하면 실제 이동 대신 편집기의 '우측 고정 이미지'로 포커스된다
     // (data-edit 위임 클릭). button 이면 위임에서 무시되므로 div 로 렌더.
+    const hover = FIXED_IMAGE_FX_USES_TRANSFORM.has(effect)
+        ? ""
+        : "hover:scale-105 active:scale-95";
     return (
         <div
             data-edit="fiximage"
             data-guide="pv-fiximage"
             aria-label="우측 고정 이미지"
-            className="absolute right-3 z-20 w-15 h-15 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer hover:scale-105 active:scale-95 transition"
+            className={`absolute right-3 z-20 w-15 h-15 rounded-full overflow-hidden shadow-lg ring-1 ring-black/5 bg-white cursor-pointer transition ${hover} ${FIXED_IMAGE_FX_CLASS[effect]}`}
             style={{ bottom: `${bottomOffset + 16}px` }}
         >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -204,6 +227,8 @@ export function PopupOverlay({
 }) {
     const [open, setOpen] = useState(true);
     const [dontShow, setDontShow] = useState(false);
+    // 이미지 로드 실패 — 빈 팝업 껍데기를 보여주느니 아예 안 띄운다.
+    const [broken, setBroken] = useState(false);
 
     // 마운트 시 오늘 날짜 쿠키 확인 → 이미 닫았으면 안 띄움.
     // SSR 안전 위해 useEffect 안에서 localStorage 접근 (window 존재 시점).
@@ -219,7 +244,7 @@ export function PopupOverlay({
         setOpen(false);
     };
 
-    if (!open) return null;
+    if (!open || broken) return null;
 
     // 배경 어둡힘 / 스크롤 잠금 없이 단순 fixed-스타일 카드로만 노출.
     return (
@@ -244,6 +269,10 @@ export function PopupOverlay({
                     src={image}
                     alt="popup"
                     className={`w-full ${pc ? "max-h-96" : "max-h-80"} object-contain`}
+                    // 이미지를 못 불러오면 팝업 자체를 닫는다.
+                    // 옛 DB 에는 파일이 사라졌거나 옛 서버 경로가 남은 행이 있어서,
+                    // 그대로 두면 '이미지 없는 빈 팝업창'만 뜬다.
+                    onError={() => setBroken(true)}
                 />
                 <label
                     className={`flex items-center gap-1.5 px-3 py-2 ${

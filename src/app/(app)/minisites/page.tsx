@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 type Land = {
   ld_id?: number | string;
@@ -39,31 +39,39 @@ function normalizeList(payload: unknown): Land[] {
   return [];
 }
 
+async function fetchLands(): Promise<Land[]> {
+  const res = await fetch(LIST_URL, { cache: "no-store" });
+  const body = await readResponse(res);
+  if (!res.ok) {
+    throw new Error(typeof body === "string" ? body : JSON.stringify(body));
+  }
+  return normalizeList(body);
+}
+
 export default function MinisitesPage() {
-  const [state, setState] = useState<ListState>({ status: "loading" });
+  // 목록은 react-query 로. 직접 useEffect + setState 로 받아오면 마운트마다
+  // 렌더 → effect → setState 로 커밋이 한 번 더 돌고(react-hooks/set-state-in-effect),
+  // 로딩·에러·재조회 상태를 손으로 관리해야 한다.
+  // QueryProvider 기본값이 staleTime: Infinity(편집 화면용)라 목록에선 짧게 오버라이드.
+  const query = useQuery({
+    queryKey: ["minisites"],
+    queryFn: fetchLands,
+    staleTime: 30_000,
+  });
 
-  const load = useCallback(async () => {
-    setState({ status: "loading" });
-    try {
-      const res = await fetch(LIST_URL, { cache: "no-store" });
-      const body = await readResponse(res);
-      if (!res.ok) {
-        throw new Error(
-          typeof body === "string" ? body : JSON.stringify(body),
-        );
-      }
-      setState({ status: "success", items: normalizeList(body) });
-    } catch (err) {
-      setState({
-        status: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, []);
+  const state: ListState = query.isPending
+    ? { status: "loading" }
+    : query.isError
+      ? {
+          status: "error",
+          message:
+            query.error instanceof Error
+              ? query.error.message
+              : String(query.error),
+        }
+      : { status: "success", items: query.data };
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const load = () => void query.refetch();
 
   return (
     <main className="min-h-screen bg-zinc-50 p-8 font-sans dark:bg-black">
@@ -80,7 +88,7 @@ export default function MinisitesPage() {
           <button
             type="button"
             onClick={load}
-            disabled={state.status === "loading"}
+            disabled={query.isFetching}
             className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-800 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
           >
             새로고침
