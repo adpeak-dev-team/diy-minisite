@@ -181,19 +181,24 @@ function PCPreview({
                         <FooterBlock footer={s.footer} pc />
                     </div>
                     {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                        <CountdownBanner s={s} pc />
+                        <CountdownBanner s={s} pc bottomOffset={0} />
                     ) : null}
                 </div>
 
                 {isInteraction ? (
-                    <SlidingHeaderOverlay scrollContainerRef={scrollRef}>
-                        <PreviewHeader
-                            s={s}
-                            px={headerPx}
-                            currentPageId={currentPageId}
-                            pc
-                            onNavigate={onNavigate}
-                        />
+                    <SlidingHeaderOverlay
+                        scrollContainerRef={scrollRef}
+                        onClick={editClick}
+                    >
+                        <div data-edit="header">
+                            <PreviewHeader
+                                s={s}
+                                px={headerPx}
+                                currentPageId={currentPageId}
+                                pc
+                                onNavigate={onNavigate}
+                            />
+                        </div>
                         {s.enabled.countdown &&
                         s.countdown.position === "top" &&
                         s.countdown.sticky ? (
@@ -201,8 +206,9 @@ function PCPreview({
                         ) : null}
                     </SlidingHeaderOverlay>
                 ) : null}
+                {/* PC 엔 하단 고정바가 없으므로 오프셋 0 (설정 높이를 세면 안 됨) */}
                 {s.enabled.countdown && s.countdown.position === "floating" ? (
-                    <CountdownFloating s={s} pc />
+                    <CountdownFloating s={s} pc bottomOffset={0} />
                 ) : null}
                 {s.enabled.quickConnect ? (
                     <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
@@ -247,9 +253,11 @@ function MobilePreview({
 }) {
     const fontFamily = fontFamilyOf(s.font) ?? "var(--font-pretendard)";
     const headerPx = parsePxOr(s.header.padding, 12);
-    const bottomOffset = s.enabled.bottomFixed
-        ? parsePxOr(s.bottomFixed.height, 64)
-        : 0;
+    // 하단 고정바의 실제 높이. 이미지 슬롯은 원본 비율로 그려져 렌더(+이미지 로드)
+    // 후에야 높이가 정해지므로, 설정값은 첫 렌더용 초기 추정치로만 쓰고
+    // 바가 실측값을 올려주면 그걸 따른다.
+    const [barH, setBarH] = useState(() => parsePxOr(s.bottomFixed.height, 64));
+    const bottomOffset = s.enabled.bottomFixed ? barH : 0;
     const orderedSections = expandFixedForms(sections);
     const scrollRef = useRef<HTMLDivElement>(null);
     const isInteraction = s.enabled.header && s.headerStyle === "interaction";
@@ -307,18 +315,23 @@ function MobilePreview({
                         <FooterBlock footer={s.footer} />
                     </div>
                     {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                        <CountdownBanner s={s} />
+                        <CountdownBanner s={s} bottomOffset={bottomOffset} />
                     ) : null}
                 </div>
 
                 {isInteraction ? (
-                    <SlidingHeaderOverlay scrollContainerRef={scrollRef}>
-                        <PreviewHeader
-                            s={s}
-                            px={headerPx}
-                            currentPageId={currentPageId}
-                            onNavigate={onNavigate}
-                        />
+                    <SlidingHeaderOverlay
+                        scrollContainerRef={scrollRef}
+                        onClick={editClick}
+                    >
+                        <div data-edit="header">
+                            <PreviewHeader
+                                s={s}
+                                px={headerPx}
+                                currentPageId={currentPageId}
+                                onNavigate={onNavigate}
+                            />
+                        </div>
                         {s.enabled.countdown &&
                         s.countdown.position === "top" &&
                         s.countdown.sticky ? (
@@ -326,9 +339,11 @@ function MobilePreview({
                         ) : null}
                     </SlidingHeaderOverlay>
                 ) : null}
-                {s.enabled.bottomFixed ? <BottomFixedBar s={s} /> : null}
+                {s.enabled.bottomFixed ? (
+                    <BottomFixedBar s={s} onHeight={setBarH} />
+                ) : null}
                 {s.enabled.countdown && s.countdown.position === "floating" ? (
-                    <CountdownFloating s={s} />
+                    <CountdownFloating s={s} bottomOffset={bottomOffset} />
                 ) : null}
                 {s.enabled.quickConnect ? (
                     <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
@@ -388,22 +403,32 @@ function baseSectionId(id: string): string {
     return id.replace(/__(bottom-dup|from-main)$/, "");
 }
 
-// 헤더 "스크롤 상호작용" 모드용 슬라이딩 오버레이.
-// 동작:
-// - 스크롤 다운 (scrollTop 증가) → 슬라이드 인 (translateY 0)
-// - 스크롤 업 (scrollTop 감소) → 슬라이드 아웃 (translateY -100%)
-// - 최상단 영역(헤더 높이 이하)에선 원본 in-flow 헤더가 보이므로 숨김
+// 헤더 "스크롤 상호작용" 모드용 상단 고정 오버레이.
+//
+// 옛 사이트(SvelteKit)의 동작을 그대로 따른다 — 헤더는 처음부터 끝까지
+// `fixed top-0` 이고 visible / nonvisible 클래스만 토글된다:
+// - 최상단(헤더 높이 이내) → 표시. 뒤의 in-flow 헤더와 정확히 겹쳐 한 개로 보인다.
+// - 스크롤 다운 → 숨김 (사용자가 말하는 "특정 시점에서 고정 풀림")
+// - 스크롤 업 → 다시 표시
+//
+// 예전 구현은 이게 정확히 반대였다: 처음엔 숨김이라 헤더가 고정 안 된 것처럼 보이다가
+// 아래로 스크롤하면 위에서 쑥 내려와 고정되고, 위로 스크롤해야 사라졌다.
 // 작은 스크롤 흔들림은 무시 (±3px 임계값)
 // scrollContainerRef 를 안 주면 window(=body 스크롤) 를 본다 — 라이브 사이트용.
 // 편집기 프리뷰는 폰/PC 프레임 안의 div 가 스크롤러라 ref 를 넘긴다.
 function SlidingHeaderOverlay({
     children,
     scrollContainerRef,
+    onClick,
 }: {
     children: React.ReactNode;
     scrollContainerRef?: RefObject<HTMLElement | null>;
+    // 편집기 프리뷰용 위임 클릭. 이 오버레이는 스크롤 컨테이너 바깥에 있어서
+    // 컨테이너에 걸린 위임 클릭이 닿지 않는다 — 최상단에서 오버레이가 in-flow 헤더를
+    // 덮으므로, 직접 받아주지 않으면 헤더를 눌러도 편집기가 안 열린다.
+    onClick?: (e: React.MouseEvent) => void;
 }) {
-    const [show, setShow] = useState(false);
+    const [show, setShow] = useState(true);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -418,16 +443,16 @@ function SlidingHeaderOverlay({
             const current = topOf();
             const headerH = ref.current?.offsetHeight ?? 64;
             if (current <= headerH) {
-                setShow(false);
+                setShow(true);
                 lastTop = current;
                 return;
             }
             const delta = current - lastTop;
             if (delta > 3) {
-                setShow(true); // 스크롤 다운 → 표시
+                setShow(false); // 스크롤 다운 → 숨김
                 lastTop = current;
             } else if (delta < -3) {
-                setShow(false); // 스크롤 업 → 숨김
+                setShow(true); // 스크롤 업 → 표시
                 lastTop = current;
             }
         };
@@ -440,6 +465,7 @@ function SlidingHeaderOverlay({
     return (
         <div
             ref={ref}
+            onClick={onClick}
             className="absolute top-0 left-0 right-0 z-20 transition-transform duration-300 ease-out"
             style={{ transform: show ? "translateY(0)" : "translateY(-100%)" }}
         >
@@ -476,10 +502,11 @@ export function LiveSite({
     // "모바일 하단 고정" 바는 이름 그대로 모바일 전용 — PC 폭에선 숨긴다.
     // (편집기 PC 미리보기도 같은 이유로 렌더하지 않는다: PCPreview 의 bottomOffset 주석)
     const showBottomFixed = s.enabled.bottomFixed && !pc;
+    // 하단 고정바의 실제 높이 — 이미지 슬롯은 원본 비율로 그려져 렌더(+이미지 로드)
+    // 후에야 정해진다. 설정값은 첫 렌더용 초기 추정치일 뿐이고, 바가 실측값을 올려준다.
+    const [barH, setBarH] = useState(() => parsePxOr(s.bottomFixed.height, 64));
     // 떠 있는 버튼들을 하단바 위로 올리는 오프셋 — 바가 없으면 0.
-    const bottomOffset = showBottomFixed
-        ? parsePxOr(s.bottomFixed.height, 64)
-        : 0;
+    const bottomOffset = showBottomFixed ? barH : 0;
 
     return (
         // 스크롤 주체는 body(문서) — 내부 div 를 스크롤러로 두지 않는다.
@@ -515,7 +542,7 @@ export function LiveSite({
                 ) : null}
                 <FooterBlock footer={s.footer} pc={pc} />
                 {s.enabled.countdown && s.countdown.position === "bottom" ? (
-                    <CountdownBanner s={s} pc={pc} />
+                    <CountdownBanner s={s} pc={pc} bottomOffset={bottomOffset} />
                 ) : null}
             </div>
 
@@ -545,9 +572,15 @@ export function LiveSite({
                         ) : null}
                     </SlidingHeaderOverlay>
                 ) : null}
-                {showBottomFixed ? <BottomFixedBar s={s} /> : null}
+                {showBottomFixed ? (
+                    <BottomFixedBar s={s} onHeight={setBarH} />
+                ) : null}
                 {s.enabled.countdown && s.countdown.position === "floating" ? (
-                    <CountdownFloating s={s} pc={pc} />
+                    <CountdownFloating
+                        s={s}
+                        pc={pc}
+                        bottomOffset={bottomOffset}
+                    />
                 ) : null}
                 {s.enabled.popup && s.popupImage ? (
                     <PopupOverlay image={s.popupImage} domain={s.domain} />
@@ -579,14 +612,16 @@ export function LiveSite({
 }
 
 // QuickConnect 스택의 세로 픽셀 높이 — FixedImage 를 그 위로 올리려고 계산.
-// (overlays.tsx 의 버튼 크기 w-15/h-15 = 60px, gap-2.5 = 10px 와 동기화)
+// (overlays.tsx 의 버튼 크기 w-22.5/h-22.5 = 90px, gap-2.5 = 10px 와 동기화)
+const QUICK_BUTTON_SIZE = 90;
+
 function quickConnectStackHeight(s: Settings): number {
     if (!s.enabled.quickConnect) return 0;
     let n = 0;
     if (s.quickConnect.kakao.enabled && s.quickConnect.kakao.url) n++;
     if (s.quickConnect.sms.enabled && s.quickConnect.sms.phone) n++;
     if (n === 0) return 0;
-    return n * 60 + (n - 1) * 10;
+    return n * QUICK_BUTTON_SIZE + (n - 1) * 10;
 }
 
 // 부모 서브페이지의 children 을 그리드로 노출해 자식 페이지로 이동시키는 네비.
@@ -679,14 +714,23 @@ function ChildPagesNav({
 // - 원래 위치 그대로 유지
 // - 단, 페이지 마지막에 위치한 경우가 아니면 동일한 폼을 페이지 하단에도 복제해서 노출
 //   (i.e. 중간에 있는 fixed 폼은 원래 위치 + 하단, 2번 나옴)
+// - 폼 바로 앞의 '문의 버튼 이미지'도 함께 복제한다. 옛 데이터에선 이 둘이 contentList
+//   한 항목(formInviteImg + formList)에서 갈라져 나온 짝이라, 폼만 복제하면 하단 사본이
+//   원위치와 다른 모습이 된다.
 function expandFixedForms(sections: Section[]): Section[] {
     const dups: Section[] = [];
     sections.forEach((sec, i) => {
         const isFixed =
             sec.type === "form" && sec.formData?.fixedBottom === "fixed";
-        if (isFixed && i < sections.length - 1) {
-            dups.push({ ...sec, id: `${sec.id}__bottom-dup` });
+        if (!isFixed || i >= sections.length - 1) return;
+        const prev = i > 0 ? sections[i - 1] : undefined;
+        if (
+            prev?.legacy?.role === "form-invite" &&
+            prev.legacy.contentListIndex === sec.legacy?.contentListIndex
+        ) {
+            dups.push({ ...prev, id: `${prev.id}__bottom-dup` });
         }
+        dups.push({ ...sec, id: `${sec.id}__bottom-dup` });
     });
     return [...sections, ...dups];
 }

@@ -82,12 +82,15 @@ export function FormBlock({
                 {(data.subjectType ?? "text") === "image" ? (
                     subjectImage ? (
                         // 카드 p-5(20px) 에서 10px 만큼만 negative margin → 이미지 주변 10px 여백 확보
-                        <div className="-mx-2.5 -mt-2.5 mb-4">
+                        <div className="-mx-2.5 -mt-2.5 mb-4 flex justify-center">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src={subjectImage}
                                 alt=""
-                                className="w-full block rounded"
+                                // 원본 크기 그대로 — 카드보다 클 때만 줄인다.
+                                // 예전엔 w-full 이라 작은 제목 이미지도 카드 폭까지 억지로
+                                // 늘어나 흐릿하고 과하게 커 보였다.
+                                className="block max-w-full h-auto rounded"
                             />
                         </div>
                     ) : null
@@ -213,14 +216,15 @@ export function FormBlock({
                     {data.buttonType === "image" && data.buttonImage ? (
                         <button
                             type="button"
-                            className="w-full"
+                            className="w-full flex justify-center"
                             onClick={(e) => e.preventDefault()}
                         >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src={data.buttonImage}
                                 alt=""
-                                className="w-full block"
+                                // 제출 버튼 이미지도 원본 크기 유지 (제목 이미지와 같은 이유)
+                                className="block max-w-full h-auto"
                             />
                         </button>
                     ) : (
