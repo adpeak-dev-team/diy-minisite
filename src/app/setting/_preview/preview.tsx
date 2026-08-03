@@ -14,6 +14,8 @@ import {
 import {
     BottomFixedBar,
     FixedImageFloating,
+    FLOAT_BUTTON_SIZE_MOBILE,
+    FLOAT_BUTTON_SIZE_PC,
     PopupOverlay,
     QuickConnectButtons,
 } from "./overlays";
@@ -211,17 +213,20 @@ function PCPreview({
                     <CountdownFloating s={s} pc bottomOffset={0} />
                 ) : null}
                 {s.enabled.quickConnect ? (
-                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                    <QuickConnectButtons
+                        s={s}
+                        bottomOffset={bottomOffset}
+                        size={FLOAT_BUTTON_SIZE_PC}
+                    />
                 ) : null}
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
                         effect={s.info.fixedImageEffect}
+                        size={FLOAT_BUTTON_SIZE_PC}
                         bottomOffset={
                             bottomOffset +
-                            (quickConnectStackHeight(s) > 0
-                                ? quickConnectStackHeight(s) + 10
-                                : 0)
+                            stackGap(s, FLOAT_BUTTON_SIZE_PC)
                         }
                         link={s.info.fixedImageLink}
                         linkType={s.info.fixedImageLinkType}
@@ -346,17 +351,20 @@ function MobilePreview({
                     <CountdownFloating s={s} bottomOffset={bottomOffset} />
                 ) : null}
                 {s.enabled.quickConnect ? (
-                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                    <QuickConnectButtons
+                        s={s}
+                        bottomOffset={bottomOffset}
+                        size={FLOAT_BUTTON_SIZE_MOBILE}
+                    />
                 ) : null}
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
                         effect={s.info.fixedImageEffect}
+                        size={FLOAT_BUTTON_SIZE_MOBILE}
                         bottomOffset={
                             bottomOffset +
-                            (quickConnectStackHeight(s) > 0
-                                ? quickConnectStackHeight(s) + 10
-                                : 0)
+                            stackGap(s, FLOAT_BUTTON_SIZE_MOBILE)
                         }
                         link={s.info.fixedImageLink}
                         linkType={s.info.fixedImageLinkType}
@@ -507,6 +515,8 @@ export function LiveSite({
     const [barH, setBarH] = useState(() => parsePxOr(s.bottomFixed.height, 64));
     // 떠 있는 버튼들을 하단바 위로 올리는 오프셋 — 바가 없으면 0.
     const bottomOffset = showBottomFixed ? barH : 0;
+    // 떠 있는 원형 버튼 지름 — 좁은 화면에선 60px, 넓은 화면에선 90px.
+    const floatSize = pc ? FLOAT_BUTTON_SIZE_PC : FLOAT_BUTTON_SIZE_MOBILE;
 
     return (
         // 스크롤 주체는 body(문서) — 내부 div 를 스크롤러로 두지 않는다.
@@ -590,18 +600,18 @@ export function LiveSite({
             {/* 화면(body) 기준 — 칼럼 폭에 매이지 않고 viewport 우측 하단에 붙는다. */}
             <div className="live-overlay-layer fixed inset-0 z-40 pointer-events-none">
                 {s.enabled.quickConnect ? (
-                    <QuickConnectButtons s={s} bottomOffset={bottomOffset} />
+                    <QuickConnectButtons
+                        s={s}
+                        bottomOffset={bottomOffset}
+                        size={floatSize}
+                    />
                 ) : null}
                 {s.enabled.fixedImage && s.info.fixedImage ? (
                     <FixedImageFloating
                         src={s.info.fixedImage}
                         effect={s.info.fixedImageEffect}
-                        bottomOffset={
-                            bottomOffset +
-                            (quickConnectStackHeight(s) > 0
-                                ? quickConnectStackHeight(s) + 10
-                                : 0)
-                        }
+                        size={floatSize}
+                        bottomOffset={bottomOffset + stackGap(s, floatSize)}
                         link={s.info.fixedImageLink}
                         linkType={s.info.fixedImageLinkType}
                     />
@@ -612,16 +622,20 @@ export function LiveSite({
 }
 
 // QuickConnect 스택의 세로 픽셀 높이 — FixedImage 를 그 위로 올리려고 계산.
-// (overlays.tsx 의 버튼 크기 w-22.5/h-22.5 = 90px, gap-2.5 = 10px 와 동기화)
-const QUICK_BUTTON_SIZE = 90;
-
-function quickConnectStackHeight(s: Settings): number {
+// (overlays.tsx 의 버튼 지름과 gap-2.5 = 10px 를 그대로 반영)
+function quickConnectStackHeight(s: Settings, size: number): number {
     if (!s.enabled.quickConnect) return 0;
     let n = 0;
     if (s.quickConnect.kakao.enabled && s.quickConnect.kakao.url) n++;
     if (s.quickConnect.sms.enabled && s.quickConnect.sms.phone) n++;
     if (n === 0) return 0;
-    return n * QUICK_BUTTON_SIZE + (n - 1) * 10;
+    return n * size + (n - 1) * 10;
+}
+
+// 퀵버튼 스택이 있으면 그 높이 + 간격만큼 FixedImage 를 더 올린다. 없으면 0.
+function stackGap(s: Settings, size: number): number {
+    const h = quickConnectStackHeight(s, size);
+    return h > 0 ? h + 10 : 0;
 }
 
 // 부모 서브페이지의 children 을 그리드로 노출해 자식 페이지로 이동시키는 네비.
