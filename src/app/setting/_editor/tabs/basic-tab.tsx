@@ -57,13 +57,16 @@ export function InfoSubTab() {
                 desc="여러 기능에서 공통으로 쓰는 정보를 여기서 한 번에 입력하세요"
                 anchor="info-basic"
             >
-                <Field label="사이트 주소 (도메인)">
+                <Field
+                    label="사이트 주소 (도메인)"
+                    hint="도메인은 여기서 바꿀 수 없습니다 — 사이트를 구분하는 키라서 변경하려면 관리자에게 문의하세요."
+                >
                     <div className="flex items-center gap-2">
                         <input
                             type="text"
-                            className="input-base flex-1"
+                            className="input-base flex-1 bg-slate-50 text-slate-500"
                             value={s.domain}
-                            onChange={(e) => update("domain", e.target.value)}
+                            readOnly
                         />
                         <button
                             type="button"

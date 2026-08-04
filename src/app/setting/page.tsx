@@ -252,12 +252,31 @@ function SettingPageInner() {
         setCurrentPageId(null);
     }, [domain, settingsQuery.data]);
 
+    // 이미지 업로드 경로(GCS 폴더)로 쓸 도메인 — DB 의 ld_domain 대소문자를 그대로 따른다.
+    // 호스트명은 브라우저가 소문자로 정규화하므로 그 값을 쓰면, 대문자가 섞인 도메인
+    // (예: Starselah49) 의 새 이미지가 기존 폴더와 다른 곳(starselah49/)에 쌓여
+    // 한 사이트의 이미지가 두 폴더로 갈린다. GCS 는 대소문자를 구분한다.
+    // 로드 전/실패 시엔 호스트 값으로 폴백.
+    const assetDomain = settingsQuery.data?.domain || domain || "";
+
     const lifecycle = useImageLifecycle();
 
     const handleSave = useCallback(async () => {
         if (!domain) {
             console.log("save (no domain)", s);
             toast.show("도메인 정보가 없어 로컬 로그만 출력했습니다.", "info");
+            return;
+        }
+        // 설정을 못 불러온 상태에서는 저장을 막는다.
+        // 이때 s 는 빈 설정(initialSettings)인데 PUT 은 ld_* 전 컬럼을 덮어쓰므로,
+        // 그대로 저장하면 멀쩡한 DB 행이 통째로 백지가 된다 — 조회만 실패하고 행은
+        // 살아 있는 경우(백엔드 순단 등)가 정확히 그 상황이다.
+        // 막아도 잃는 기능은 없다: PUT 은 UPDATE 전용이라 행이 없으면 어차피 404다.
+        if (load.status === "error") {
+            toast.show(
+                "설정을 불러오지 못해 저장할 수 없습니다. 새로고침 후 다시 시도하세요.",
+                "error",
+            );
             return;
         }
         try {
@@ -272,7 +291,7 @@ function SettingPageInner() {
                 "error",
             );
         }
-    }, [domain, s, toast, saveMutation, lifecycle]);
+    }, [domain, s, toast, saveMutation, lifecycle, load.status]);
 
     // 페이지 이탈 (F5 / 탭 닫기 / 다른 페이지 이동) 시 저장 안 된 업로드 이미지 정리.
     // sendBeacon 으로 best-effort cleanup.
@@ -448,7 +467,7 @@ function SettingPageInner() {
 
     return (
         <AutoFocusContext.Provider value={autoFocus}>
-            <DomainContext.Provider value={domain ?? ""}>
+            <DomainContext.Provider value={assetDomain}>
                 <div className="h-screen flex flex-col lg:grid lg:grid-cols-[1fr_1fr] bg-slate-50 suit overflow-hidden">
                     <GuideButton
                         onClick={() => {
@@ -622,9 +641,10 @@ function SettingPageInner() {
                                 </div>
                             )}
                             {load.status === "error" && (
-                                <div className="absolute inset-x-3 top-3 rounded border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                                <div className="absolute inset-x-3 top-3 rounded border border-red-300 bg-red-50 p-3 text-xs text-red-800">
                                     <div className="font-medium">
-                                        GET 실패 — 빈 설정으로 시작합니다. 저장은 가능합니다.
+                                        설정을 불러오지 못했습니다 — 저장할 수 없습니다.
+                                        (지금 저장하면 기존 사이트 내용이 지워지므로 막아 둡니다)
                                     </div>
                                     <pre className="mt-1 whitespace-pre-wrap wrap-break-word">
                                         {load.message}
@@ -654,10 +674,18 @@ function SettingPageInner() {
                                 data-guide="save"
                                 className="btn btn-primary w-full py-3"
                                 onClick={handleSave}
-                                disabled={saving || load.status === "loading"}
+                                disabled={
+                                    saving ||
+                                    load.status === "loading" ||
+                                    load.status === "error"
+                                }
                                 title="단축키: Ctrl/⌘ + S"
                             >
-                                {saving ? "저장 중…" : "저장 (⌘S)"}
+                                {load.status === "error"
+                                    ? "저장 불가"
+                                    : saving
+                                        ? "저장 중…"
+                                        : "저장 (⌘S)"}
                             </button>
                         </div>
                     </div>

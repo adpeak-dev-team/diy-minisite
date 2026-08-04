@@ -845,7 +845,11 @@ export async function getSettings(domain: string): Promise<Settings> {
   if (!res.ok) throw new Error(asError(body));
 
   const list: Land[] = Array.isArray(body) ? (body as Land[]) : [];
-  const land = list.find((row) => row.ld_domain === domain);
+  // 대소문자 무시로 찾는다. DNS/브라우저가 호스트명을 소문자로 정규화하므로
+  // ld_domain 에 대문자가 섞인 행(예: Starselah49)은 === 비교로는 영원히 안 잡힌다.
+  // DB 쪽 `WHERE ld_domain = ?` 는 MySQL 기본 collation 이 ci 라 이미 이렇게 동작한다.
+  const key = domain.toLowerCase();
+  const land = list.find((row) => asString(row.ld_domain).toLowerCase() === key);
   if (!land) throw new Error(`domain '${domain}' not found in /api/test`);
 
   return landToSettings(land);

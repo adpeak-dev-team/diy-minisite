@@ -6,9 +6,14 @@ import { useSyncExternalStore } from "react";
 // proxy.ts 의 hasMeaningfulSubdomain 과 동일 규칙:
 // - 점(.) 없으면 null (localhost 단독)
 // - 첫 세그먼트가 'www' 또는 IP 면 null
+//
+// 호스트명은 대소문자를 구분하지 않으므로 소문자로 정규화한다 (proxy.ts 와 동일).
+// 브라우저가 이미 소문자로 만들어 주지만, 규칙을 여기 명시해 두어야
+// ld_domain 에 대문자가 섞인 행과 비교할 때 어느 쪽 기준인지 헷갈리지 않는다.
 export function domainFromHostname(hostname: string): string | null {
-    if (!hostname.includes(".")) return null;
-    const first = hostname.split(".")[0];
+    const host = hostname.toLowerCase();
+    if (!host.includes(".")) return null;
+    const first = host.split(".")[0];
     if (!first || first === "www" || /^\d+$/.test(first)) return null;
     return first;
 }
