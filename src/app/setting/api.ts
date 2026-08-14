@@ -840,19 +840,27 @@ function landToSettings(land: Land): Settings {
 }
 
 export async function getSettings(domain: string): Promise<Settings> {
-  const res = await fetch(LIST_URL, { cache: "no-store" });
-  const body = await readBody(res);
-  if (!res.ok) throw new Error(asError(body));
-
-  const list: Land[] = Array.isArray(body) ? (body as Land[]) : [];
-  // 대소문자 무시로 찾는다. DNS/브라우저가 호스트명을 소문자로 정규화하므로
-  // ld_domain 에 대문자가 섞인 행(예: Starselah49)은 === 비교로는 영원히 안 잡힌다.
-  // DB 쪽 `WHERE ld_domain = ?` 는 MySQL 기본 collation 이 ci 라 이미 이렇게 동작한다.
+  // 단건 조회. 예전엔 /api/test 로 land 전체를 받아 클라에서 골라냈는데,
+  // 그러면 라이브 페이지가 열릴 때마다 모든 사이트의 모든 컬럼
+  // (ld_manager_email, ld_add_scripts 등 남의 사이트 것까지)이 브라우저로 내려오고
+  // 페이로드가 등록된 사이트 수에 비례해 커진다.
+  //
+  // 도메인은 소문자로 정규화해서 보낸다. ld_domain 이 utf8mb4_unicode_ci 라
+  // 서버의 `WHERE ld_domain = ?` 가 이미 대소문자를 무시하지만
+  // (예: Starselah49), 어느 쪽 기준인지 호출부에 명시해 둔다.
+  // 정규화 규칙은 lib/use-domain.ts 와 동일.
   const key = domain.toLowerCase();
-  const land = list.find((row) => asString(row.ld_domain).toLowerCase() === key);
-  if (!land) throw new Error(`domain '${domain}' not found in /api/test`);
+  const res = await fetch(`${LIST_URL}/${encodeURIComponent(key)}`, {
+    cache: "no-store",
+  });
+  const body = await readBody(res);
+  // 없는 도메인이면 백엔드가 404 + { message: "domain '...' not found" }
+  if (!res.ok) throw new Error(asError(body));
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error(`domain '${domain}' not found`);
+  }
 
-  return landToSettings(land);
+  return landToSettings(body as Land);
 }
 
 // resolveAsset의 역연산 — DB에는 ASSET_BASE 떼고 상대 경로만 저장.
@@ -1304,7 +1312,11 @@ export function settingsToLand(s: Settings): LandPatch {
     // location.address 도 user-editable. 새 값 없으면 legacy 폴백.
     ld_location: s.location.address || s.legacy?.location || "",
     ld_manager_email: s.legacy?.managerEmail ?? "",
-    ld_site: s.legacy?.site ?? "",
+    // ld_site 는 일부러 안 보낸다. 현장 매핑은 관리자 화면(/admin/minisite) 소유고
+    // 이 편집기엔 현장 UI 가 없다. 여기서 legacy.site 를 되돌려쓰면, 관리자가 현장을
+    // 매핑한 뒤 (그 전에 열어둔) 편집기에서 저장하는 것만으로 옛 값이 덮어써져
+    // 매핑이 조용히 사라진다. 서버도 같은 이유로 이 컬럼을 무시한다.
+    // (routes/minisite.ts 의 NOT_OWNED_BY_EDITOR)
     ld_menu: s.legacy?.menu ?? "",
     ld_ft_address: s.legacy?.ftAddress ?? "",
     ld_view_type: s.legacy?.viewType ?? "",
